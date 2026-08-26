@@ -62,6 +62,7 @@
   .toast{position:fixed; bottom:26px; left:50%; transform:translateX(-50%); background:#22293a; color:#fff; padding:9px 22px; border-radius:20px; font-size:13px; opacity:0; transition:opacity .3s; pointer-events:none; z-index:99;}
   .toast.show{opacity:.95;}
   .cmp-note{font-size:12px; color:var(--sub); margin-top:8px;}
+  .panel h4{font-size:13px; margin-bottom:8px; color:var(--txt); display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
 </style>
 </head>
 <body>
@@ -79,6 +80,7 @@
 <nav>
   <button data-tab="overview" class="active">数据总览</button>
   <button data-tab="records">记录管理</button>
+  <button data-tab="trend">环比/同比对比</button>
   <button data-tab="compare">年度对比</button>
   <button data-tab="settings">里程与费用设置</button>
 </nav>
@@ -131,6 +133,32 @@
         <input type="text" id="fltKw" placeholder="搜索用途…" style="width:180px">
       </div>
       <div class="scroll"><table id="recTable"></table></div>
+    </div>
+  </section>
+
+  <!-- ═══ 环比/同比对比 ═══ -->
+  <section id="tab-trend" class="tab">
+    <div class="panel">
+      <h3>月度环比与同比<span class="note">环比 = 对比上月；同比 = 对比去年同月。红色=上升，绿色=下降</span></h3>
+      <div class="grid2">
+        <div>
+          <h4>月度环比变化率<select id="momMetric"></select></h4>
+          <div class="chart-box"><canvas id="chMom"></canvas></div>
+        </div>
+        <div>
+          <h4>当年 vs 去年同月（油电费用）</h4>
+          <div class="chart-box"><canvas id="chYoY"></canvas></div>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <h3>月度环比/同比明细表<span class="note" id="trendYearNote"></span></h3>
+      <div class="scroll"><table id="mTrendTable"></table></div>
+    </div>
+    <div class="panel">
+      <h3>年度同比对比表</h3>
+      <div class="scroll"><table id="yTrendTable"></table></div>
+      <p class="cmp-note">说明：同比 =（本期 − 去年同期）÷ 去年同期；数据不足一年的年份不做年化处理，同比仅供参考。</p>
     </div>
   </section>
 
@@ -480,6 +508,68 @@ function renderCompare(){
   document.getElementById('cmpTable').innerHTML=h+'</tbody>';
 }
 
+/* ═══════════════ 环比 / 同比对比 ═══════════════ */
+const METRICS=[['energy','油电费用'],['charge','充电费用'],['fuel','加油费用'],['expense','用车费用'],['mileage','里程'],['perKm','每公里成本'],['unitC','充电单价']];
+function monthSeries(y){
+  const agg=monthAgg(y);
+  return MO.map((_,i)=>{ const a=agg[i+1], e=a.charge+a.fuel;
+    return {energy:e, charge:a.charge, fuel:a.fuel, expense:a.expense, mileage:a.mileage,
+      perKm:a.mileage>0?e/a.mileage:null, unitC:a.capC>0?a.charge/a.capC:null}; });
+}
+function pct(c,p){ if(c==null||p==null||!p) return null; return (c-p)/Math.abs(p)*100; }
+function pctHtml(p,neutral){
+  if(p==null||isNaN(p)) return '<span style="color:#b6bccb">—</span>';
+  const s=(p>0?'+':'')+p.toFixed(1)+'%';
+  const col=neutral?'#64748b':(p>0.05?'#ef4444':(p<-0.05?'#10b981':'#64748b'));
+  return `<span style="color:${col};font-weight:600">${s}</span>`;
+}
+function renderTrend(){
+  const y=curYear;
+  const sel=document.getElementById('momMetric');
+  if(!sel.options.length) sel.innerHTML=METRICS.map(m=>`<option value="${m[0]}">${m[1]}</option>`).join('');
+  const mk=sel.value||'energy';
+  const mname=(METRICS.find(m=>m[0]===mk)||METRICS[0])[1];
+  const cur=monthSeries(y), prev=monthSeries(y-1);
+  const neutral=mk==='mileage';
+  document.getElementById('trendYearNote').textContent=`当前：${y} 年 · 同比基准：${y-1} 年`;
+  // 月度环比变化率柱状图
+  const mom=cur.map((c,i)=>i===0?null:pct(c[mk],cur[i-1][mk]));
+  mkChart('chMom',{type:'bar',data:{labels:MO,datasets:[{label:mname+' 环比(%)',data:mom,
+      backgroundColor:mom.map(v=>v==null?'#e5e9f0':(neutral?'#3b82f6':(v>0?'#ef4444':'#10b981'))),borderRadius:3}]},
+    options:{...baseOpt('%'),plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.y==null?'无环比数据（缺上月）':'环比 '+(c.parsed.y>0?'+':'')+c.parsed.y.toFixed(1)+'%'}}}}});
+  // 当年 vs 去年同月
+  mkChart('chYoY',{type:'bar',data:{labels:MO,datasets:[
+      {label:y+'年 油电',data:cur.map(c=>c.energy),backgroundColor:'#3b82f6',borderRadius:3},
+      {label:(y-1)+'年 油电',data:prev.map(c=>c.energy),backgroundColor:'#cbd5e1',borderRadius:3}]},
+    options:{...baseOpt('元'),plugins:{legend:{labels:{boxWidth:12}},tooltip:{callbacks:{afterBody:items=>{
+      const i=items[0].dataIndex,p=pct(cur[i].energy,prev[i].energy);
+      return p==null?'':('同比 '+(p>0?'+':'')+p.toFixed(1)+'%');}}}}}});
+  // 月度环比/同比明细表
+  let h='<thead><tr><th class="l">月份</th><th>油电(元)</th><th>环比</th><th>同比</th><th>用车费用(元)</th><th>环比</th><th>里程(公里)</th><th>环比</th><th>元/公里</th><th>环比</th><th>充电单价(元/kWh)</th><th>环比</th></tr></thead><tbody>';
+  for(let i=0;i<12;i++){
+    const c=cur[i],p=i>0?cur[i-1]:null,lp=prev[i];
+    h+=`<tr><td class="l"><b>${i+1}月</b></td>
+    <td>${c.energy?money(c.energy):'—'}</td><td>${pctHtml(pct(c.energy,p&&p.energy))}</td><td>${pctHtml(pct(c.energy,lp.energy))}</td>
+    <td>${c.expense?money(c.expense):'—'}</td><td>${pctHtml(pct(c.expense,p&&p.expense))}</td>
+    <td>${c.mileage?fmt(c.mileage,1):'—'}</td><td>${pctHtml(pct(c.mileage,p&&p.mileage),true)}</td>
+    <td>${c.perKm?money(c.perKm,3):'—'}</td><td>${pctHtml(pct(c.perKm,p&&p.perKm))}</td>
+    <td>${c.unitC?money(c.unitC):'—'}</td><td>${pctHtml(pct(c.unitC,p&&p.unitC))}</td></tr>`;
+  }
+  document.getElementById('mTrendTable').innerHTML=h+'</tbody>';
+  // 年度同比对比表
+  const ys=years(),T={}; ys.forEach(v=>T[v]=yearAgg(v));
+  let h2='<thead><tr><th class="l">年份</th><th>油电合计(元)</th><th>同比</th><th>用车费用(元)</th><th>同比</th><th>年总费用(元)</th><th>同比</th><th>里程(公里)</th><th>同比</th><th>元/公里</th><th>同比</th><th>充电单价</th><th>同比</th></tr></thead><tbody>';
+  ys.forEach(v=>{const t=T[v],p=T[v-1]||null;
+    h2+=`<tr><td class="l"><b>${v}</b></td>
+    <td>${money(t.energy)}</td><td>${pctHtml(pct(t.energy,p&&p.energy))}</td>
+    <td>${money(t.expense)}</td><td>${pctHtml(pct(t.expense,p&&p.expense))}</td>
+    <td><b>${money(t.total)}</b></td><td>${pctHtml(pct(t.total,p&&p.total))}</td>
+    <td>${fmt(t.mileage,1)}</td><td>${pctHtml(pct(t.mileage,p&&p.mileage),true)}</td>
+    <td>${t.perKm?money(t.perKm,3):'—'}</td><td>${pctHtml(pct(t.perKm,p&&p.perKm))}</td>
+    <td>${t.unitC?money(t.unitC,2)+' 元/kWh':'—'}</td><td>${pctHtml(pct(t.unitC,p&&p.unitC))}</td></tr>`;});
+  document.getElementById('yTrendTable').innerHTML=h2+'</tbody>';
+}
+
 /* ═══════════════ 记录管理 ═══════════════ */
 function renderRecords(){
   const fy=document.getElementById('fltYear').value, ft=document.getElementById('fltType').value, kw=document.getElementById('fltKw').value.trim();
@@ -566,7 +656,7 @@ function exportCsv(){
 }
 
 /* ═══════════════ 初始化与事件 ═══════════════ */
-function refresh(){ renderOverview(); renderCompare(); renderRecords(); renderSettings(); }
+function refresh(){ renderOverview(); renderCompare(); renderTrend(); renderRecords(); renderSettings(); }
 function initYears(){
   const ys=years();
   document.getElementById('yearSel').innerHTML=ys.map(y=>`<option value="${y}"${y===curYear?' selected':''}>${y} 年</option>`).join('');
@@ -584,6 +674,7 @@ async function init(){
     b.classList.add('active'); document.getElementById('tab-'+b.dataset.tab).classList.add('active');
   });
   document.getElementById('yearSel').onchange=e=>{curYear=+e.target.value; refresh();};
+  document.getElementById('momMetric').onchange=renderTrend;
   document.getElementById('fType').onchange=syncFormFields;
   document.getElementById('btnSave').onclick=()=>{
     const type=document.getElementById('fType').value, dv=document.getElementById('fDate').value;
