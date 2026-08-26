@@ -75,6 +75,12 @@
   .carcard .meta{color:var(--sub); font-size:12px; margin:8px 0 12px; line-height:1.8;}
   .carcard .syncb{position:absolute; top:14px; right:14px; font-size:11px;}
   .carcard .ops{display:flex; gap:8px;}
+  /* 档案密码弹窗 */
+  #lockMask{position:fixed; inset:0; background:rgba(15,23,42,.45); display:flex; align-items:center; justify-content:center; z-index:50;}
+  .lockbox{background:#fff; border-radius:12px; padding:26px 30px; width:320px; text-align:center; box-shadow:0 10px 40px rgba(15,23,42,.25);}
+  .lockbox .plate{font-size:20px; font-weight:800; letter-spacing:1px;}
+  .lockbox .hint{font-size:12px; color:var(--sub); margin:8px 0 12px; line-height:1.7;}
+  .lockbox input{width:100%; text-align:center; font-size:18px; letter-spacing:6px;}
 </style>
 </head>
 <body>
@@ -211,6 +217,15 @@
   <!-- ═══ 设置 ═══ -->
   <section id="tab-settings" class="tab">
     <div class="panel">
+      <h3>档案密码 <span class="note" id="pwdStatus"></span></h3>
+      <div style="font-size:12.5px;color:var(--sub);margin-bottom:10px">进入本档案时需输入密码，默认密码为车牌后四位数字。修改后的密码随档案数据同步到你在各设备的云端。</div>
+      <div class="form-row">
+        <div class="fld"><label>新密码（纯数字，位数不限）</label><input type="password" id="newPwd" inputmode="numeric" style="width:230px" placeholder="留空不修改" autocomplete="off"></div>
+        <button class="btn" id="btnSavePwd">保存密码</button>
+        <button class="btn gray" id="btnResetPwd">恢复默认密码</button>
+      </div>
+    </div>
+    <div class="panel">
       <h3>云端同步（GitHub Gist）<span class="note" id="ghStatus"></span></h3>
       <div style="font-size:12.5px;color:var(--sub);line-height:2;margin-bottom:10px">
         数据存入你 GitHub 名下的<b>私密 Gist</b>，每辆车一个独立数据空间，任何设备联网即可读写。<b>令牌每台设备只需输入一次</b>，即可管理你名下所有车辆的云端数据。步骤：<br>
@@ -253,6 +268,17 @@
     </div>
   </section>
 </main>
+</div>
+<div id="lockMask" style="display:none">
+  <div class="lockbox">
+    <div class="plate" id="lockPlate"></div>
+    <div class="hint">请输入档案密码（默认：车牌后四位数字）</div>
+    <input type="password" id="lockPwd" inputmode="numeric" autocomplete="off" placeholder="····">
+    <div style="display:flex;gap:8px;justify-content:center;margin-top:14px">
+      <button class="btn" id="btnUnlock">进入档案</button>
+      <button class="btn gray" id="btnLockCancel">取消</button>
+    </div>
+  </div>
 </div>
 <div class="toast" id="toast"></div>
 
@@ -313,6 +339,11 @@ let curYear=2026;
 let editingId=null, editingOt=null;
 const charts={};
 let lastSavedAt=0, saveTimer=null, lastEtag='';
+const unlocked=new Set();   // 本次会话已解锁的车牌
+let lockTarget=null;        // 等待解锁的车牌
+
+function defaultPwd(pl){ return pl.replace(/[^0-9]/g,'').slice(-4); }
+function profPwd(prof){ return (prof.data&&prof.data.pwd)||defaultPwd(prof.plate); }
 
 function P(){ return DB.profiles[plate]; }
 function validPlate(s){ return /^[\u4e00-\u9fa5][A-Z][A-Z0-9]{5,6}$/.test(s); }
@@ -620,6 +651,9 @@ function renderGhPanel(){
 }
 function renderSettings(){
   renderGhPanel();
+  const ps=document.getElementById('pwdStatus');
+  ps.textContent=S.pwd?'已设置自定义密码':'当前为默认密码（车牌后四位数字）';
+  ps.style.color=S.pwd?'#10b981':'var(--sub)';
   const y=curYear;
   document.getElementById('mileTitle').textContent=`${plate} · ${y} 年每月行驶里程（公里）`;
   document.getElementById('mileGrid').innerHTML=MO.map((n,i)=>
@@ -659,11 +693,26 @@ function renderGarage(){
       <button class="btn mini red" onclick="delCar('${prof.plate}')">删除</button></div>
     </div>`;}).join('');
 }
-window.enterCar=function(p){ openProfile(p); };
+window.enterCar=function(p){
+  const prof=DB.profiles[p]; if(!prof) return;
+  if(unlocked.has(p)){ openProfile(p); return; }
+  lockTarget=p;
+  document.getElementById('lockPlate').textContent=p+(prof.name?' · '+prof.name:'');
+  document.getElementById('lockPwd').value='';
+  document.getElementById('lockMask').style.display='flex';
+  setTimeout(()=>document.getElementById('lockPwd').focus(),50);
+};
+function hideLock(){ document.getElementById('lockMask').style.display='none'; lockTarget=null; }
+function tryUnlock(){
+  const prof=DB.profiles[lockTarget]; if(!prof){ hideLock(); return; }
+  const v=document.getElementById('lockPwd').value.trim();
+  if(v===profPwd(prof)){ unlocked.add(lockTarget); const p=lockTarget; hideLock(); openProfile(p); }
+  else { show('密码错误，请重试'); const el=document.getElementById('lockPwd'); el.value=''; el.focus(); }
+}
 window.delCar=function(p){
   const prof=DB.profiles[p]; if(!prof) return;
   if(!confirm(`确定删除车辆档案 ${p}？\n本地记录将被清除${prof.gistId?'（GitHub 上的云端数据不会自动删除）':''}。`)) return;
-  delete DB.profiles[p];
+  delete DB.profiles[p]; unlocked.delete(p);
   if(DB.lastPlate===p) DB.lastPlate=Object.keys(DB.profiles)[0]||'';
   saveDB(); renderGarage(); show('已删除档案');
 };
@@ -739,9 +788,23 @@ async function init(){
     const pl=(document.getElementById('newPlate').value||'').trim().toUpperCase();
     const name=document.getElementById('newCarName').value.trim();
     if(!validPlate(pl)){show('车牌格式不正确（示例：浙AGA6939，新能源 8 位）');return;}
-    if(DB.profiles[pl]){show('该车牌档案已存在，直接进入');openProfile(pl);return;}
+    if(DB.profiles[pl]){show('该车牌档案已存在，直接进入');unlocked.add(pl);openProfile(pl);return;}
     DB.profiles[pl]={plate:pl,name,createdAt:Date.now(),gistId:'',data:emptyData()};
-    saveDB(); openProfile(pl); show('档案已创建，开始记录吧');
+    saveDB(); unlocked.add(pl); openProfile(pl); show('档案已创建，开始记录吧');
+  };
+  // ── 档案密码 ──
+  document.getElementById('btnUnlock').onclick=tryUnlock;
+  document.getElementById('btnLockCancel').onclick=hideLock;
+  document.getElementById('lockPwd').onkeydown=e=>{ if(e.key==='Enter') tryUnlock(); };
+  document.getElementById('btnSavePwd').onclick=()=>{
+    const v=document.getElementById('newPwd').value.trim();
+    if(!/^\d+$/.test(v)){show('密码必须是纯数字（位数不限）');return;}
+    S.pwd=v; unlocked.delete(plate); save(); document.getElementById('newPwd').value='';
+    renderSettings(); show('密码已更新，下次进入需使用新密码');
+  };
+  document.getElementById('btnResetPwd').onclick=()=>{
+    if(!confirm('恢复默认密码（车牌后四位数字）？'))return;
+    delete S.pwd; unlocked.delete(plate); save(); renderSettings(); show('已恢复默认密码');
   };
   document.getElementById('yearSel').onchange=e=>{curYear=+e.target.value; refresh();};
   document.getElementById('momMetric').onchange=renderTrend;
@@ -854,9 +917,9 @@ async function init(){
       initYears(); refresh(); setSync('synced');
     }
   },10000);
-  // 进入上次的档案；若无档案则停在档案库页面
+  // 进入上次的档案（本机自动登录）；若无档案则停在档案库页面
   const target=DB.lastPlate&&DB.profiles[DB.lastPlate]?DB.lastPlate:null;
-  if(target) await openProfile(target); else showGarage();
+  if(target){ unlocked.add(target); await openProfile(target); } else showGarage();
 }
 init();
 </script>
