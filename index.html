@@ -611,6 +611,10 @@ async function bkLoad(){   // 读取备份注册表：车牌 -> 备份 Gist ID
   bkMap=bkMap||{}; return bkMap;
 }
 async function bkSaveReg(){
+  const local=bkMap||{};   // 本次会话的变更
+  bkMap=null;              // 强制从云端重读注册表，避免多设备缓存互相覆盖
+  await bkLoad();
+  Object.assign(bkMap,local);   // 合并：本地新映射覆盖云端旧值
   try{
     const content=JSON.stringify(bkMap);
     if(bkRegGistId){
