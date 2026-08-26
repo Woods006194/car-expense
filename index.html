@@ -142,6 +142,18 @@
   <!-- 管理员模式（隐藏功能，不在说明书中体现） -->
   <div class="panel" id="adminPanel" style="display:none">
     <h3>管理员模式 <span class="note">可查看全部档案，无需密码</span></h3>
+    <div class="form-row" style="margin-bottom:10px;align-items:flex-end">
+      <div class="fld"><label>排序方式</label>
+        <select id="adminSortSel">
+          <option value="plate">车牌命名顺序</option>
+          <option value="created">档案创建日期</option>
+          <option value="updated">档案更改日期</option>
+        </select></div>
+      <button class="btn mini gray" id="adminDirBtn" title="点击切换正序/倒序">正序 ↑</button>
+      <div class="fld"><label>省份（车牌首位）</label><select id="adminF1" style="min-width:86px"></select></div>
+      <div class="fld"><label>地市（车牌第二位）</label><select id="adminF2" style="min-width:86px"></select></div>
+      <span class="note" id="adminCount" style="padding-bottom:6px"></span>
+    </div>
     <div id="adminList"></div>
     <div style="margin-top:10px"><button class="btn gray" id="btnExitAdmin">退出管理员模式</button></div>
   </div>
@@ -454,6 +466,7 @@ let adminMode=false;        // 管理员模式（隐藏功能，会话级）
 let replyingTo=null;        // 正在回复的留言 id
 let pwdEditing=null;        // 管理员模式下正在修改密码的车牌
 let resetConfirm=null;      // 管理员模式下待确认恢复默认密码的车牌
+let adminSort='plate', adminAsc=true, adminF1='', adminF2='';  // 管理员列表排序与筛选状态
 
 function masked(){ return viewLocked; }          // 未解锁时数字以 * 显示
 function defaultPwd(pl){ return pl.slice(-4); }  // 车牌后四位（含数字或字母）
@@ -565,6 +578,7 @@ function setSync(state){
 }
 function goSettings(){ document.querySelector('[data-tab="settings"]').click(); document.getElementById('ghToken').focus(); }
 function save(toast){
+  if(P()) P().updatedAt=Date.now();   // 记录档案最近更改时间
   saveDB();
   clearTimeout(saveTimer);
   if(backend()==='github') saveTimer=setTimeout(gistPush,300);
@@ -844,8 +858,27 @@ function resetDemo(){ const d=DB.profiles[DEMO_PLATE]; if(d){ d.data=buildDemo()
 function enterAdmin(){ adminMode=true; pwdEditing=null; resetConfirm=null; renderMain(); show('已进入管理员模式'); }
 function renderAdminList(){
   const el=document.getElementById('adminList');
-  const list=Object.values(DB.profiles).sort((a,b)=>a.createdAt-b.createdAt);
-  if(!list.length){ el.innerHTML='<div style="color:var(--sub);font-size:13px">暂无车辆档案</div>'; return; }
+  const all=Object.values(DB.profiles);
+  /* 一级筛选：车牌首位（省份） */
+  const f1s=[...new Set(all.map(p=>p.plate[0]))].sort((a,b)=>a.localeCompare(b,'zh'));
+  if(adminF1&&!f1s.includes(adminF1)) adminF1='';
+  document.getElementById('adminF1').innerHTML='<option value="">全部</option>'+f1s.map(c=>`<option value="${c}"${adminF1===c?' selected':''}>${c}</option>`).join('');
+  const lvl1=adminF1?all.filter(p=>p.plate[0]===adminF1):all;
+  /* 二级筛选：车牌第二位（地市），随一级联动 */
+  const f2s=[...new Set(lvl1.map(p=>p.plate[1]))].sort();
+  if(adminF2&&!f2s.includes(adminF2)) adminF2='';
+  document.getElementById('adminF2').innerHTML='<option value="">全部</option>'+f2s.map(c=>`<option value="${c}"${adminF2===c?' selected':''}>${c}</option>`).join('');
+  let list=adminF2?lvl1.filter(p=>p.plate[1]===adminF2):lvl1;
+  /* 排序：车牌/创建日期/更改日期，可正序倒序 */
+  const dir=adminAsc?1:-1;
+  list=list.slice().sort((a,b)=>{
+    if(adminSort==='plate') return a.plate.localeCompare(b.plate,'zh')*dir;
+    if(adminSort==='created') return ((a.createdAt||0)-(b.createdAt||0))*dir;
+    return (((a.updatedAt||a.createdAt)||0)-((b.updatedAt||b.createdAt)||0))*dir;
+  });
+  document.getElementById('adminDirBtn').textContent=adminAsc?'正序 ↑':'倒序 ↓';
+  document.getElementById('adminCount').textContent=`共 ${list.length} 个档案`;
+  if(!list.length){ el.innerHTML='<div style="color:var(--sub);font-size:13px">'+(all.length?'没有符合筛选条件的档案':'暂无车辆档案')+'</div>'; return; }
   el.innerHTML=list.map(prof=>{
     const st=profStats(prof);
     const pwdState=prof.noPwd?'无需密码':(prof.data.pwd?'已设自定义密码':'默认密码（车牌后四位）');
@@ -876,13 +909,13 @@ window.adminSetPwdGo=function(p){
   const prof=DB.profiles[p]; if(!prof) return;
   const v=normPwd(document.getElementById('admNewPwd').value);
   if(!/^[A-Z0-9]{1,6}$/.test(v)){ show('密码限 6 位以内的数字或字母'); return; }
-  prof.data.pwd=v; unlocked.delete(p); pwdEditing=null; saveDB(); renderAdminList(); show('密码已更新');
+  prof.data.pwd=v; unlocked.delete(p); pwdEditing=null; prof.updatedAt=Date.now(); saveDB(); renderAdminList(); show('密码已更新');
 };
 window.adminResetPwd=function(p){ resetConfirm=p; pwdEditing=null; renderAdminList(); };
 window.adminResetCancel=function(){ resetConfirm=null; renderAdminList(); };
 window.adminResetPwdGo=function(p){
   const prof=DB.profiles[p]; if(!prof) return;
-  delete prof.data.pwd; unlocked.delete(p); resetConfirm=null; saveDB(); renderAdminList(); show('已恢复默认密码');
+  delete prof.data.pwd; unlocked.delete(p); resetConfirm=null; prof.updatedAt=Date.now(); saveDB(); renderAdminList(); show('已恢复默认密码');
 };
 
 /* 普通用户搜索已有档案：须先输入密码才能进入 */
@@ -1056,12 +1089,16 @@ async function init(){
   };
   window.createCar=function(pl){
     const name=(document.getElementById('createName').value||'').trim();
-    DB.profiles[pl]={plate:pl,name,createdAt:Date.now(),gistId:'',data:emptyData()};
+    DB.profiles[pl]={plate:pl,name,createdAt:Date.now(),updatedAt:Date.now(),gistId:'',data:emptyData()};
     saveDB(); unlocked.add(pl); openProfile(pl); show('档案已创建，默认密码为车牌后四位');
   };
   document.getElementById('btnSearchCar').onclick=searchCar;
   document.getElementById('searchPlate').onkeydown=e=>{ if(e.key==='Enter') searchCar(); };
   document.getElementById('btnExitAdmin').onclick=()=>{ adminMode=false; replyingTo=null; renderMain(); show('已退出管理员模式'); };
+  document.getElementById('adminSortSel').onchange=e=>{ adminSort=e.target.value; renderAdminList(); };
+  document.getElementById('adminDirBtn').onclick=()=>{ adminAsc=!adminAsc; renderAdminList(); };
+  document.getElementById('adminF1').onchange=e=>{ adminF1=e.target.value; adminF2=''; renderAdminList(); };   // 切换省份时重置地市
+  document.getElementById('adminF2').onchange=e=>{ adminF2=e.target.value; renderAdminList(); };
   document.getElementById('btnHelp').onclick=()=>{ document.getElementById('helpMask').style.display='flex'; };
   document.getElementById('btnHelpClose').onclick=()=>{ document.getElementById('helpMask').style.display='none'; };
   // ── 意见建议留言板 ──
