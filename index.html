@@ -864,7 +864,7 @@ async function openProfile(p){
   plate=p; DB.lastPlate=p; saveDB();
   S=P().data; fixIds();
   lastEtag=''; lastSavedAt=(S.meta&&S.meta.savedAt)||0;
-  editingId=null; editingOt=null;
+  editingId=null; editingOt=null; cancelEdit();   // 清空上一辆车的表单残留
   viewLocked=needsPwd(P())&&!unlocked.has(p);   // 未解锁则数字打码
   showApp();
   document.title=plate+' · 用车费用记账与分析';
