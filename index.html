@@ -631,7 +631,7 @@ async function bkPush(prof){
   bkBusy=true;
   try{
     const map=await bkLoad();
-    const content=JSON.stringify({plate:prof.plate,backupAt:Date.now(),data:prof.data});
+    const content=JSON.stringify({plate:prof.plate,backupAt:Date.now(),profile:{name:prof.name||'',createdAt:prof.createdAt,gistId:prof.gistId||'',noPwd:!!prof.noPwd},data:prof.data});
     let gid=map[prof.plate], ok=false;
     if(gid){
       const r=await fetch('https://api.github.com/gists/'+gid,{method:'PATCH',headers:bkHdr(),body:JSON.stringify({files:{'backup.json':{content}}})});
@@ -646,6 +646,31 @@ async function bkPush(prof){
   bkBusy=false;
 }
 function bkSchedule(prof){ clearTimeout(bkTimer); bkTimer=setTimeout(()=>bkPush(prof),2500); }   // 防抖，静默执行
+/* 换设备找回：按车牌查询云端备份（仅在搜索未命中本地时触发，不主动列举） */
+async function cloudLookup(pl){
+  try{
+    const map=await bkLoad();
+    if(!map[pl]) return null;
+    const r=await fetch('https://api.github.com/gists/'+map[pl],{headers:bkHdr()});
+    if(!r.ok) return null;
+    const g=await r.json();
+    const f=g.files&&g.files['backup.json']; if(!f) return null;
+    let content=f.content;
+    if(f.truncated){ const rr=await fetch(f.raw_url); if(rr.ok) content=await rr.text(); }
+    const bk=JSON.parse(content);
+    return (bk&&bk.plate===pl)?bk:null;
+  }catch(e){ return null; }
+}
+window.restoreCar=function(pl){
+  const bk=window._pendingBk;
+  if(!bk||bk.plate!==pl){ show('云端数据不可用，请重新搜索'); return; }
+  const p=bk.profile||{};
+  const prof={plate:pl,name:p.name||'',createdAt:p.createdAt||Date.now(),updatedAt:Date.now(),gistId:p.gistId||'',data:bk.data||emptyData()};
+  if(p.noPwd) prof.noPwd=true;
+  DB.profiles[pl]=prof; saveDB(); window._pendingBk=null;
+  show('已从云端恢复档案');
+  if(needsPwd(prof)) showGate(pl); else openProfile(pl);
+};
 function show(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),1800); }
 function requireUnlock(){ if(masked()){ show('档案已加密，请先在数据总览页输入密码解锁'); return false; } return true; }
 const fmt=(n,d=2)=>masked()?'*':((n==null||isNaN(n))?'—':Number(n).toLocaleString('zh-CN',{minimumFractionDigits:0,maximumFractionDigits:d}));
@@ -1152,16 +1177,31 @@ async function init(){
       if(!needsPwd(DB.profiles[pl])||unlocked.has(pl)){ openProfile(pl); return; }
       showGate(pl); return;
     }
-    res.innerHTML=`<div style="font-size:13px">未找到车牌 <b>${pl}</b> 的档案，可以为它创建新档案：</div>
-      <div class="form-row" style="margin-top:8px">
-        <div class="fld"><label>车型 / 备注（可选）</label><input type="text" id="createName" placeholder="如：问界M7" style="width:180px"></div>
-        <button class="btn" onclick="createCar('${pl}')">创建新档案</button>
-      </div>`;
+    res.innerHTML='<div style="font-size:13px;color:var(--sub)">本机未找到该车牌的档案，正在查询云端…</div>';
+    cloudLookup(pl).then(bk=>{
+      if(DB.profiles[pl]){ openProfile(pl); return; }   // 等待期间已在本机出现
+      if(bk){
+        let ts='';
+        if(bk.backupAt){ const t=new Date(bk.backupAt); const pad=n=>String(n).padStart(2,'0');
+          ts=`${t.getFullYear()}-${pad(t.getMonth()+1)}-${pad(t.getDate())} ${pad(t.getHours())}:${pad(t.getMinutes())}`; }
+        window._pendingBk=bk;
+        res.innerHTML=`<div style="font-size:13px">在云端找到车牌 <b>${pl}</b> 的档案${ts?'（最近备份：'+ts+'）':''}，可恢复到本机继续使用：</div>
+          <div class="form-row" style="margin-top:8px">
+            <button class="btn" onclick="restoreCar('${pl}')">恢复到本机</button>
+          </div>`;
+      }else{
+        res.innerHTML=`<div style="font-size:13px">未找到车牌 <b>${pl}</b> 的档案，可以为它创建新档案：</div>
+          <div class="form-row" style="margin-top:8px">
+            <div class="fld"><label>车型 / 备注（可选）</label><input type="text" id="createName" placeholder="如：问界M7" style="width:180px"></div>
+            <button class="btn" onclick="createCar('${pl}')">创建新档案</button>
+          </div>`;
+      }
+    });
   };
   window.createCar=function(pl){
     const name=(document.getElementById('createName').value||'').trim();
     DB.profiles[pl]={plate:pl,name,createdAt:Date.now(),updatedAt:Date.now(),gistId:'',data:emptyData()};
-    saveDB(); unlocked.add(pl); openProfile(pl); show('档案已创建，默认密码为车牌后四位');
+    saveDB(); bkSchedule(DB.profiles[pl]); unlocked.add(pl); openProfile(pl); show('档案已创建，默认密码为车牌后四位');
   };
   document.getElementById('btnSearchCar').onclick=searchCar;
   document.getElementById('searchPlate').onkeydown=e=>{ if(e.key==='Enter') searchCar(); };
