@@ -96,6 +96,16 @@
   .msg .mtime{color:var(--sub); font-weight:400;}
   .msg .mhead .del{margin-left:auto;}
   .msg .mbody{font-size:13px; color:var(--ink); line-height:1.7; word-break:break-word;}
+  .msg .replies{margin-top:6px;}
+  .reply{background:#fff; border:1px solid #eef1f6; border-radius:6px; padding:6px 10px; margin-top:6px; font-size:12.5px;}
+  .reply b{margin-right:8px;}
+  .reply .mtime{color:var(--sub); font-weight:400;}
+  .reply .mbody{font-size:12.5px; margin-top:2px;}
+  /* 管理员模式档案列表 */
+  .adminrow{display:flex; align-items:center; gap:12px; flex-wrap:wrap; border:1px solid #eef1f6; border-radius:8px; padding:10px 12px; margin-bottom:8px; background:#fafbfd;}
+  .adminrow .ainfo{flex:1; min-width:220px; font-size:13.5px;}
+  .adminrow .ainfo .note{display:block; margin-top:2px;}
+  .adminrow .aops{display:flex; gap:6px; flex-wrap:wrap;}
 </style>
 </head>
 <body>
@@ -128,6 +138,14 @@
     </div>
     <div id="searchResult" style="margin-top:10px"></div>
   </div>
+
+  <!-- 管理员模式（隐藏功能，不在说明书中体现） -->
+  <div class="panel" id="adminPanel" style="display:none">
+    <h3>管理员模式 <span class="note">可查看全部档案，无需密码</span></h3>
+    <div id="adminList"></div>
+    <div style="margin-top:10px"><button class="btn gray" id="btnExitAdmin">退出管理员模式</button></div>
+  </div>
+
   <div class="panel">
     <h3>示例档案 <span class="note" style="color:#10b981">无需密码 · 可直接体验全部功能</span></h3>
     <div class="demo-card" id="demoCard"></div>
@@ -432,6 +450,10 @@ const charts={};
 let lastSavedAt=0, saveTimer=null, lastEtag='';
 const unlocked=new Set();   // 本次会话已解锁的车牌
 let viewLocked=false;       // 当前档案是否处于加密未解锁状态（数字打码）
+let adminMode=false;        // 管理员模式（隐藏功能，会话级）
+let replyingTo=null;        // 正在回复的留言 id
+let pwdEditing=null;        // 管理员模式下正在修改密码的车牌
+let resetConfirm=null;      // 管理员模式下待确认恢复默认密码的车牌
 
 function masked(){ return viewLocked; }          // 未解锁时数字以 * 显示
 function defaultPwd(pl){ return pl.slice(-4); }  // 车牌后四位（含数字或字母）
@@ -809,11 +831,78 @@ function renderMain(){
     <div class="dplate">${DEMO_PLATE}<span class="dtag">示例</span></div>
     <div class="dmeta">用于演示的虚拟车辆，内置 ${st.n} 条记录（${st.span}），包含充电、加油、用车费用、里程与固定费用。<br>无需密码，可随意体验记账、统计、环比/同比等全部功能。</div>
     <button class="btn" onclick="enterCar('${DEMO_PLATE}')">进入示例档案</button>`;
+  const ap=document.getElementById('adminPanel');
+  ap.style.display=adminMode?'':'none';
+  if(adminMode) renderAdminList();
   renderMsgs();
 }
 window.enterCar=function(p){ openProfile(p); };
 /* 示例档案：退出后恢复初设状态 */
 function resetDemo(){ const d=DB.profiles[DEMO_PLATE]; if(d){ d.data=buildDemo(); saveDB(); } }
+
+/* ═══════════════ 管理员模式（隐藏功能） ═══════════════ */
+function enterAdmin(){ adminMode=true; pwdEditing=null; resetConfirm=null; renderMain(); show('已进入管理员模式'); }
+function renderAdminList(){
+  const el=document.getElementById('adminList');
+  const list=Object.values(DB.profiles).sort((a,b)=>a.createdAt-b.createdAt);
+  if(!list.length){ el.innerHTML='<div style="color:var(--sub);font-size:13px">暂无车辆档案</div>'; return; }
+  el.innerHTML=list.map(prof=>{
+    const st=profStats(prof);
+    const pwdState=prof.noPwd?'无需密码':(prof.data.pwd?'已设自定义密码':'默认密码（车牌后四位）');
+    let ops;
+    if(!prof.noPwd&&pwdEditing===prof.plate){
+      ops=`<input type="text" id="admNewPwd" maxlength="6" style="width:130px" placeholder="新密码（6位内数字/字母）" autocomplete="off" onkeydown="if(event.key==='Enter')adminSetPwdGo('${prof.plate}')">
+        <button class="btn mini" onclick="adminSetPwdGo('${prof.plate}')">确定</button>
+        <button class="btn mini gray" onclick="adminPwdCancel()">取消</button>`;
+    }else if(!prof.noPwd&&resetConfirm===prof.plate){
+      ops=`<span style="font-size:12px;color:var(--red)">确认恢复为车牌后四位？</span>
+        <button class="btn mini red" onclick="adminResetPwdGo('${prof.plate}')">确认恢复</button>
+        <button class="btn mini gray" onclick="adminResetCancel()">取消</button>`;
+    }else{
+      ops=`<button class="btn mini" onclick="adminEnter('${prof.plate}')">进入</button>
+        ${prof.noPwd?'':`<button class="btn mini gray" onclick="adminSetPwd('${prof.plate}')">修改密码</button>
+        <button class="btn mini gray" onclick="adminResetPwd('${prof.plate}')">恢复默认密码</button>`}`;
+    }
+    return `<div class="adminrow">
+      <div class="ainfo"><b>${prof.plate}</b>${prof.name?' · '+esc(prof.name):''}
+        <span class="note">${st.span} · ${st.n} 条记录 · ${pwdState}${prof.gistId?' · ☁ 已连云端':''}</span></div>
+      <div class="aops">${ops}</div>
+    </div>`;}).join('');
+}
+window.adminEnter=function(p){ unlocked.add(p); openProfile(p); };   // 管理员直接进入，无需密码
+window.adminSetPwd=function(p){ pwdEditing=p; resetConfirm=null; renderAdminList(); const f=document.getElementById('admNewPwd'); if(f) f.focus(); };
+window.adminPwdCancel=function(){ pwdEditing=null; renderAdminList(); };
+window.adminSetPwdGo=function(p){
+  const prof=DB.profiles[p]; if(!prof) return;
+  const v=normPwd(document.getElementById('admNewPwd').value);
+  if(!/^[A-Z0-9]{1,6}$/.test(v)){ show('密码限 6 位以内的数字或字母'); return; }
+  prof.data.pwd=v; unlocked.delete(p); pwdEditing=null; saveDB(); renderAdminList(); show('密码已更新');
+};
+window.adminResetPwd=function(p){ resetConfirm=p; pwdEditing=null; renderAdminList(); };
+window.adminResetCancel=function(){ resetConfirm=null; renderAdminList(); };
+window.adminResetPwdGo=function(p){
+  const prof=DB.profiles[p]; if(!prof) return;
+  delete prof.data.pwd; unlocked.delete(p); resetConfirm=null; saveDB(); renderAdminList(); show('已恢复默认密码');
+};
+
+/* 普通用户搜索已有档案：须先输入密码才能进入 */
+function showGate(pl){
+  const prof=DB.profiles[pl]; if(!prof) return;
+  document.getElementById('searchResult').innerHTML=`
+    <div style="font-size:13px">已找到档案 <b>${pl}</b>${prof.name?' · '+esc(prof.name):''}，请输入档案密码后进入（默认密码为车牌后四位）：</div>
+    <div class="form-row" style="margin-top:8px">
+      <div class="fld"><input type="password" id="gatePwd" maxlength="6" style="width:200px" placeholder="请输入密码" autocomplete="off" onkeydown="if(event.key==='Enter')gateEnter('${pl}')"></div>
+      <button class="btn" onclick="gateEnter('${pl}')">进入档案</button>
+    </div>`;
+  setTimeout(()=>{ const f=document.getElementById('gatePwd'); if(f) f.focus(); },50);
+}
+window.gateEnter=function(pl){
+  const prof=DB.profiles[pl]; if(!prof) return;
+  const v=(document.getElementById('gatePwd').value||'').trim();
+  if(!v){ show('请输入密码'); return; }
+  if(checkPwd(prof,v)){ unlocked.add(pl); openProfile(pl); }
+  else { show('密码错误，请重试'); document.getElementById('gatePwd').value=''; document.getElementById('gatePwd').focus(); }
+};
 /* ═══════════════ 意见建议留言板 ═══════════════ */
 const MSG_KEY='carExpenseMsgs';
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -823,11 +912,38 @@ function renderMsgs(){
   const el=document.getElementById('msgList'); if(!el) return;
   const a=loadMsgs();
   if(!a.length){ el.innerHTML='<div style="color:var(--sub);font-size:13px">还没有留言，来写下第一条吧～</div>'; return; }
-  el.innerHTML=a.map(m=>`<div class="msg">
-    <div class="mhead"><b>${esc(m.nick)||'匿名'}</b><span class="mtime">${esc(m.time)}</span><button class="del" onclick="delMsg(${m.id})">删除</button></div>
-    <div class="mbody">${esc(m.text).replace(/\n/g,'<br>')}</div></div>`).join('');
+  el.innerHTML=a.map(m=>{
+    const reps=(m.replies||[]).map(r=>`<div class="reply"><b>${esc(r.nick)||'匿名'}</b><span class="mtime">${esc(r.time)}</span><div class="mbody">${esc(r.text).replace(/\n/g,'<br>')}</div></div>`).join('');
+    const form=replyingTo===m.id?`<div class="form-row" style="margin-top:8px;align-items:flex-end">
+      <div class="fld"><label>昵称（可选）</label><input type="text" id="repNick_${m.id}" maxlength="12" style="width:110px" placeholder="匿名"></div>
+      <div class="fld" style="flex:1"><label>回复内容</label><input type="text" id="repText_${m.id}" maxlength="300" placeholder="写下你的回复…"></div>
+      <button class="btn mini" onclick="sendReply(${m.id})">回复</button>
+      <button class="btn mini gray" onclick="cancelReply()">取消</button>
+    </div>`:'';
+    return `<div class="msg">
+    <div class="mhead"><b>${esc(m.nick)||'匿名'}</b><span class="mtime">${esc(m.time)}</span>${adminMode?`<button class="del" onclick="delMsg(${m.id})">删除</button>`:''}</div>
+    <div class="mbody">${esc(m.text).replace(/\n/g,'<br>')}</div>
+    <div class="replies">${reps}</div>
+    <div style="margin-top:6px"><button class="edt" onclick="startReply(${m.id})">回复</button></div>
+    ${form}</div>`;}).join('');
+  if(replyingTo!=null){ const f=document.getElementById('repText_'+replyingTo); if(f) f.focus(); }
 }
-window.delMsg=function(id){ if(!confirm('删除这条留言？'))return; saveMsgs(loadMsgs().filter(m=>m.id!==id)); renderMsgs(); };
+window.startReply=function(id){ replyingTo=id; renderMsgs(); };
+window.cancelReply=function(){ replyingTo=null; renderMsgs(); };
+window.sendReply=function(id){
+  const text=(document.getElementById('repText_'+id).value||'').trim();
+  if(!text){ show('请输入回复内容'); return; }
+  const nick=(document.getElementById('repNick_'+id).value||'').trim();
+  const a=loadMsgs(); const m=a.find(x=>x.id===id); if(!m) return;
+  if(!m.replies) m.replies=[];
+  const now=new Date(); const pad=n=>String(n).padStart(2,'0');
+  m.replies.push({id:Date.now(),nick,text,time:`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`});
+  saveMsgs(a); replyingTo=null; renderMsgs(); show('回复已发布');
+};
+window.delMsg=function(id){
+  if(!adminMode){ show('仅管理员可删除留言'); return; }
+  saveMsgs(loadMsgs().filter(m=>m.id!==id)); renderMsgs(); show('留言已删除');
+};
 /* 档案内解锁：默认密码/自定义密码/管理员密码 */
 function doUnlock(){
   const v=(document.getElementById('unlockPwd').value||'').trim();
@@ -921,11 +1037,17 @@ async function init(){
   document.getElementById('btnSwitchCar').onclick=showGarage;
   // ── 主页面：搜索进入 / 使用说明书 ──
   const searchCar=()=>{
-    const pl=(document.getElementById('searchPlate').value||'').trim().toUpperCase();
+    const raw=(document.getElementById('searchPlate').value||'').trim();
     const res=document.getElementById('searchResult');
-    if(!pl){ show('请输入车牌号'); return; }
+    if(!raw){ show('请输入车牌号'); return; }
+    if(raw===ADMIN_PWD){ enterAdmin(); return; }
+    const pl=raw.toUpperCase();
     if(!validPlate(pl)){ res.innerHTML='<div style="color:var(--red)">车牌格式不正确：应为 7 或 8 位，首位为汉字，其余为数字或字母（如 浙AGA6939、浙AD12345）。</div>'; return; }
-    if(DB.profiles[pl]){ openProfile(pl); return; }
+    if(DB.profiles[pl]){
+      if(adminMode){ unlocked.add(pl); openProfile(pl); return; }
+      if(!needsPwd(DB.profiles[pl])||unlocked.has(pl)){ openProfile(pl); return; }
+      showGate(pl); return;
+    }
     res.innerHTML=`<div style="font-size:13px">未找到车牌 <b>${pl}</b> 的档案，可以为它创建新档案：</div>
       <div class="form-row" style="margin-top:8px">
         <div class="fld"><label>车型 / 备注（可选）</label><input type="text" id="createName" placeholder="如：问界M7" style="width:180px"></div>
@@ -939,6 +1061,7 @@ async function init(){
   };
   document.getElementById('btnSearchCar').onclick=searchCar;
   document.getElementById('searchPlate').onkeydown=e=>{ if(e.key==='Enter') searchCar(); };
+  document.getElementById('btnExitAdmin').onclick=()=>{ adminMode=false; replyingTo=null; renderMain(); show('已退出管理员模式'); };
   document.getElementById('btnHelp').onclick=()=>{ document.getElementById('helpMask').style.display='flex'; };
   document.getElementById('btnHelpClose').onclick=()=>{ document.getElementById('helpMask').style.display='none'; };
   // ── 意见建议留言板 ──
@@ -947,7 +1070,7 @@ async function init(){
     if(!text){ show('请输入留言内容'); return; }
     const nick=document.getElementById('msgNick').value.trim();
     const a=loadMsgs(); const now=new Date(); const pad=n=>String(n).padStart(2,'0');
-    a.unshift({id:Date.now(),nick,text,time:`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`});
+    a.unshift({id:Date.now(),nick,text,time:`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`,replies:[]});
     saveMsgs(a); document.getElementById('msgText').value=''; renderMsgs(); show('留言已发表');
   };
   // ── 档案内解锁 ──
