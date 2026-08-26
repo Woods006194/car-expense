@@ -894,7 +894,8 @@ function renderAdminList(){
     }else{
       ops=`<button class="btn mini" onclick="adminEnter('${prof.plate}')">进入</button>
         ${prof.noPwd?'':`<button class="btn mini gray" onclick="adminSetPwd('${prof.plate}')">修改密码</button>
-        <button class="btn mini gray" onclick="adminResetPwd('${prof.plate}')">恢复默认密码</button>`}`;
+        <button class="btn mini gray" onclick="adminResetPwd('${prof.plate}')">恢复默认密码</button>`}
+        <button class="btn mini red" onclick="adminDelCar('${prof.plate}')">删除档案</button>`;
     }
     return `<div class="adminrow">
       <div class="ainfo"><b>${prof.plate}</b>${prof.name?' · '+esc(prof.name):''}
@@ -916,6 +917,14 @@ window.adminResetCancel=function(){ resetConfirm=null; renderAdminList(); };
 window.adminResetPwdGo=function(p){
   const prof=DB.profiles[p]; if(!prof) return;
   delete prof.data.pwd; unlocked.delete(p); resetConfirm=null; prof.updatedAt=Date.now(); saveDB(); renderAdminList(); show('已恢复默认密码');
+};
+window.adminDelCar=function(p){
+  const prof=DB.profiles[p]; if(!prof) return;
+  if(p===DEMO_PLATE){ show('示例档案不可删除（系统会自动恢复）'); return; }
+  if(!confirm(`确认删除车辆档案 ${p}？\n本地记录将被清除${prof.gistId?'（GitHub 上的云端数据不会自动删除）':''}，且无法恢复。`)) return;
+  delete DB.profiles[p]; unlocked.delete(p);
+  if(DB.lastPlate===p) DB.lastPlate='';
+  saveDB(); renderMain(); show('档案已删除');
 };
 
 /* 普通用户搜索已有档案：须先输入密码才能进入 */
