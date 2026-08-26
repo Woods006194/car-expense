@@ -268,7 +268,7 @@ function buildSeed(){
 const LS_KEY='carExpenseDataV1';
 const GH_KEY='carExpenseGH';
 const GH_FILE='car-expense-data.json';
-const serverMode=location.protocol==='http:'||location.protocol==='https:';
+const serverMode=(location.protocol==='http:'||location.protocol==='https:')&&!/\.github\.io$/.test(location.hostname);
 let S=null;                 // 全局数据
 let curYear=2026;           // 当前查看年份
 let editingId=null, editingOt=null;
