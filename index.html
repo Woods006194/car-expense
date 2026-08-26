@@ -14,14 +14,14 @@
   body{font-family:"Segoe UI","Microsoft YaHei",sans-serif; background:var(--bg); color:var(--txt); font-size:14px;}
   header{background:linear-gradient(120deg,#1e3a8a,#3b82f6); color:#fff; padding:14px 24px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;}
   header h1{font-size:19px; font-weight:600;}
-  header h1 small{font-size:12px; opacity:.75; font-weight:400; margin-left:10px;}
+  header h1 small{font-size:12px; opacity:.85; font-weight:400; margin-left:10px; background:rgba(255,255,255,.16); padding:3px 10px; border-radius:12px;}
   .hdr-right{display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
   select,input,button{font-family:inherit; font-size:13px; border:1px solid var(--line); border-radius:6px; padding:6px 10px; background:#fff; color:var(--txt);}
   header select,header button,header label.btn{background:rgba(255,255,255,.14); color:#fff; border-color:rgba(255,255,255,.35); cursor:pointer;}
   header select option{color:var(--txt);}
   header button:hover,header label.btn:hover{background:rgba(255,255,255,.28);}
   label.btn{display:inline-block; cursor:pointer;}
-  nav{display:flex; gap:4px; padding:10px 24px 0; background:#fff; border-bottom:1px solid var(--line);}
+  nav{display:flex; gap:4px; padding:10px 24px 0; background:#fff; border-bottom:1px solid var(--line); flex-wrap:wrap;}
   nav button{border:none; background:none; padding:9px 18px; cursor:pointer; font-size:14px; color:var(--sub); border-bottom:2.5px solid transparent; border-radius:0;}
   nav button.active{color:var(--blue); border-bottom-color:var(--blue); font-weight:600;}
   main{padding:18px 24px 40px; max-width:1400px; margin:0 auto;}
@@ -36,8 +36,9 @@
   .grid2{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
   @media(max-width:980px){.grid2{grid-template-columns:1fr;}}
   .panel{background:var(--card); border:1px solid var(--line); border-radius:10px; padding:15px; margin-bottom:14px;}
-  .panel h3{font-size:14px; margin-bottom:12px; color:var(--txt); display:flex; justify-content:space-between; align-items:center;}
+  .panel h3{font-size:14px; margin-bottom:12px; color:var(--txt); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;}
   .panel h3 span.note{font-size:11px; color:var(--sub); font-weight:400;}
+  .panel h4{font-size:13px; margin-bottom:8px; color:var(--txt); display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
   .chart-box{position:relative; height:300px;}
   table{width:100%; border-collapse:collapse; font-size:13px;}
   th,td{padding:7px 9px; border-bottom:1px solid var(--line); text-align:right; white-space:nowrap;}
@@ -62,21 +63,53 @@
   .toast{position:fixed; bottom:26px; left:50%; transform:translateX(-50%); background:#22293a; color:#fff; padding:9px 22px; border-radius:20px; font-size:13px; opacity:0; transition:opacity .3s; pointer-events:none; z-index:99;}
   .toast.show{opacity:.95;}
   .cmp-note{font-size:12px; color:var(--sub); margin-top:8px;}
-  .panel h4{font-size:13px; margin-bottom:8px; color:var(--txt); display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  /* 车辆档案库 */
+  #garageView{max-width:1000px; margin:0 auto; padding:26px 20px 60px;}
+  .garage-hero{margin-bottom:16px;}
+  .garage-hero h2{font-size:21px; margin-bottom:8px;}
+  .garage-hero p{color:var(--sub); font-size:13px; line-height:1.9; max-width:760px;}
+  .carcards{display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:14px; margin-top:6px;}
+  .carcard{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; position:relative; transition:box-shadow .15s;}
+  .carcard:hover{box-shadow:0 4px 16px rgba(30,58,138,.10);}
+  .carcard .plate{font-size:22px; font-weight:800; letter-spacing:1.5px;}
+  .carcard .meta{color:var(--sub); font-size:12px; margin:8px 0 12px; line-height:1.8;}
+  .carcard .syncb{position:absolute; top:14px; right:14px; font-size:11px;}
+  .carcard .ops{display:flex; gap:8px;}
 </style>
 </head>
 <body>
 <header>
-  <h1>🚗 用车费用记账与分析<small>充电 · 加油 · 用车费用 · 可视化对比</small></h1>
-  <div class="hdr-right">
+  <h1>🚗 用车费用记账与分析<small id="plateBadge"></small></h1>
+  <div class="hdr-right" id="hdrRight">
     <span id="syncStatus" style="font-size:12px;opacity:.92"></span>
     <select id="yearSel" title="选择年份"></select>
+    <button id="btnSwitchCar">切换车辆</button>
     <button id="btnExport">导出JSON</button>
     <button id="btnCsv">导出CSV</button>
     <label class="btn">导入JSON<input type="file" id="fileImport" accept=".json" hidden></label>
-    <button id="btnReset">重置为初始数据</button>
+    <button id="btnReset">重置本车数据</button>
   </div>
 </header>
+
+<!-- ═══ 车辆档案库（落地页） ═══ -->
+<div id="garageView">
+  <div class="garage-hero">
+    <h2>我的车辆档案</h2>
+    <p>每辆车一份独立档案：记录充电、加油与用车费用，自动统计每公里成本、能源单价，支持月度环比/年度同比对比与云端多设备同步。选择下方档案进入，或输入你的车牌创建新档案。</p>
+  </div>
+  <div class="panel">
+    <h3>创建新车辆档案</h3>
+    <div class="form-row">
+      <div class="fld"><label>车牌号（必填）</label><input type="text" id="newPlate" placeholder="如：浙AGA6939" maxlength="8" style="width:190px;text-transform:uppercase"></div>
+      <div class="fld"><label>车型 / 备注（可选）</label><input type="text" id="newCarName" placeholder="如：问界M7" style="width:190px"></div>
+      <button class="btn" id="btnCreateCar">创建档案</button>
+    </div>
+  </div>
+  <div class="carcards" id="garageCards"></div>
+</div>
+
+<!-- ═══ 主应用 ═══ -->
+<div id="appView" style="display:none">
 <nav>
   <button data-tab="overview" class="active">数据总览</button>
   <button data-tab="records">记录管理</button>
@@ -180,14 +213,14 @@
     <div class="panel">
       <h3>云端同步（GitHub Gist）<span class="note" id="ghStatus"></span></h3>
       <div style="font-size:12.5px;color:var(--sub);line-height:2;margin-bottom:10px">
-        数据存入你 GitHub 名下的<b>私密 Gist</b>，任何设备联网即可读写，无需开电脑。步骤：<br>
+        数据存入你 GitHub 名下的<b>私密 Gist</b>，每辆车一个独立数据空间，任何设备联网即可读写。<b>令牌每台设备只需输入一次</b>，即可管理你名下所有车辆的云端数据。步骤：<br>
         ① 打开 <a href="https://github.com/settings/tokens/new?scopes=gist&description=用车费用记账" target="_blank">GitHub 令牌创建页</a>（需已登录 GitHub；令牌<b>只勾选 gist 权限</b>）→ 点 Generate token；<br>
         ② 复制生成的令牌（ghp_ 开头）粘贴到下方。<b>令牌仅保存在本设备浏览器中</b>，不会上传到任何第三方。<br>
-        ③ 点"连接云端"：已有云端数据则填数据 ID 后连接；留空则把当前数据新建为云端数据。其他设备用"复制设备接入链接"+粘贴同一令牌即可加入。
+        ③ 点"连接云端"：填写数据 ID 可连接已有云端数据；留空则为当前车辆新建云端数据。其他设备用"复制设备接入链接"+粘贴同一令牌即可加入。
       </div>
       <div class="form-row">
-        <div class="fld" style="flex:1;min-width:260px"><label>GitHub 访问令牌（仅 gist 权限）</label><input type="password" id="ghToken" style="width:100%" placeholder="ghp_xxxx" autocomplete="off"></div>
-        <div class="fld"><label>云端数据 ID（连接已有数据时填写）</label><input type="text" id="ghGistId" style="width:270px" placeholder="留空 = 新建云端数据"></div>
+        <div class="fld" style="flex:1;min-width:260px"><label>GitHub 访问令牌（仅 gist 权限，全设备共用）</label><input type="password" id="ghToken" style="width:100%" placeholder="ghp_xxxx" autocomplete="off"></div>
+        <div class="fld"><label>本车云端数据 ID（连接已有数据时填写）</label><input type="text" id="ghGistId" style="width:270px" placeholder="留空 = 为本车新建云端数据"></div>
         <button class="btn" id="btnGhConnect">连接云端</button>
         <button class="btn gray" id="btnGhDisconnect">断开云端</button>
         <button class="btn green" id="btnGhShare" style="display:none">复制设备接入链接</button>
@@ -220,10 +253,11 @@
     </div>
   </section>
 </main>
+</div>
 <div class="toast" id="toast"></div>
 
 <script>
-/* ═══════════════ 初始数据（来自 用车费用.xlsx，2024-2026） ═══════════════ */
+/* ═══════════════ 示例初始数据（来自 用车费用.xlsx，车牌 浙AGA6939，2024-2026） ═══════════════ */
 /* 充电/加油格式: [月, 日, 金额, 容量]，日=0 表示家充桩；用车费用: [月, 日, 金额, 用途] */
 const RAW = {
 charge:{
@@ -263,43 +297,69 @@ function buildSeed(){
     oneTime:RAW.oneTime.map((o,i)=>({id:i+1,year:o[0],cat:o[1],name:o[2],amount:o[3]})),
     nextId:recs.length+1, nextOt:RAW.oneTime.length+1};
 }
+function emptyData(){ return {records:[], mileage:{}, fixed:{}, oneTime:[], nextId:1, nextOt:1}; }
 
-/* ═══════════════ 状态与持久化（云端同步） ═══════════════ */
-const LS_KEY='carExpenseDataV1';
-const GH_KEY='carExpenseGH';
+/* ═══════════════ 车辆档案注册表与状态 ═══════════════ */
+const DB_KEY='carExpenseDBv2';      // 多车辆档案库
+const OLD_KEY='carExpenseDataV1';   // 旧版单车数据（迁移用）
+const GH_OLD='carExpenseGH';        // 旧版云端配置（迁移用）
+const TOKEN_KEY='carExpenseGHToken';// GitHub 令牌（本设备共用）
 const GH_FILE='car-expense-data.json';
-const serverMode=(location.protocol==='http:'||location.protocol==='https:')&&!/\.github\.io$/.test(location.hostname);
-let S=null;                 // 全局数据
-let curYear=2026;           // 当前查看年份
+const SAMPLE_PLATE='浙AGA6939';
+let DB=null;          // {profiles:{plate:{plate,name,createdAt,gistId,data}}, lastPlate}
+let plate=null;       // 当前档案车牌
+let S=null;           // 当前档案数据
+let curYear=2026;
 let editingId=null, editingOt=null;
 const charts={};
 let lastSavedAt=0, saveTimer=null, lastEtag='';
 
-// ── GitHub Gist 云存储配置 ──
-function ghCfg(){ try{ return JSON.parse(localStorage.getItem(GH_KEY))||{}; }catch(e){ return {}; } }
-function ghSaveCfg(c){ try{ localStorage.setItem(GH_KEY, JSON.stringify(c)); }catch(e){} }
-function ghHeaders(){ return {Authorization:'token '+ghCfg().token, Accept:'application/vnd.github+json'}; }
-function backend(){ const c=ghCfg(); if(c.token&&c.gistId) return 'github'; return serverMode?'server':'local'; }
-
-// 分享链接：?gist=xxx 指定云端数据 ID
-(function(){ const g=new URLSearchParams(location.search).get('gist');
-  if(g){ const c=ghCfg(); if(c.gistId!==g){ c.gistId=g.trim(); ghSaveCfg(c); } } })();
-// 访问码（本地服务器模式）：优先取 URL 中的 ?key=xxx，其次取 sessionStorage
-(function(){ const k=new URLSearchParams(location.search).get('key');
-  if(k){ try{sessionStorage.setItem('accessKey',k);}catch(e){} } })();
-function accessKey(){ try{return sessionStorage.getItem('accessKey')||'';}catch(e){return '';} }
-function apiUrl(){ return '/api/data?key='+encodeURIComponent(accessKey()); }
-function askKey(){
-  const k=prompt('请输入访问码（服务器启动时显示，或在 token.txt 中）：');
-  if(k){ try{sessionStorage.setItem('accessKey',k.trim());}catch(e){} location.reload(); }
+function P(){ return DB.profiles[plate]; }
+function validPlate(s){ return /^[\u4e00-\u9fa5][A-Z][A-Z0-9]{5,6}$/.test(s); }
+function ghToken(){ try{return localStorage.getItem(TOKEN_KEY)||'';}catch(e){return '';} }
+function ghSaveToken(t){ try{ t?localStorage.setItem(TOKEN_KEY,t):localStorage.removeItem(TOKEN_KEY);}catch(e){} }
+function backend(){ return (ghToken()&&P()&&P().gistId)?'github':'local'; }
+function saveDB(){ try{ localStorage.setItem(DB_KEY, JSON.stringify(DB)); }catch(e){} }
+function fixIds(){
+  if(!S.nextId) S.nextId=Math.max(0,...S.records.map(r=>r.id))+1;
+  if(!S.nextOt) S.nextOt=Math.max(0,...S.oneTime.map(o=>o.id))+1;
 }
-function goSettings(){ document.querySelector('[data-tab="settings"]').click(); document.getElementById('ghToken').focus(); }
+function loadDB(){
+  try{ const raw=localStorage.getItem(DB_KEY); if(raw){ const d=JSON.parse(raw); if(d&&d.profiles&&Object.keys(d.profiles).length) return d; } }catch(e){}
+  // 首次使用或迁移旧版数据：样本档案 浙AGA6939
+  let oldData=null, gistId='', token='';
+  try{ const raw=localStorage.getItem(OLD_KEY); if(raw){ const d=JSON.parse(raw); if(d&&Array.isArray(d.records)) oldData=d; } }catch(e){}
+  try{ const c=JSON.parse(localStorage.getItem(GH_OLD)||'{}'); if(c.token) token=c.token; if(c.gistId) gistId=c.gistId; }catch(e){}
+  if(token) ghSaveToken(token);
+  const prof={plate:SAMPLE_PLATE,name:'示例车辆',createdAt:Date.now(),gistId,data:oldData||buildSeed()};
+  return {profiles:{[SAMPLE_PLATE]:prof}, lastPlate:SAMPLE_PLATE};
+}
+// 分享链接：?gist=数据ID&plate=车牌
+function handleShareParams(){
+  const q=new URLSearchParams(location.search);
+  const g=q.get('gist'); if(!g) return;
+  const pl=(q.get('plate')||'').trim().toUpperCase();
+  let target=pl;
+  if(!target||!DB.profiles[target]){
+    if(!pl) target=DB.lastPlate;
+    if(!target||!DB.profiles[target]){
+      if(!pl) return;
+      DB.profiles[pl]={plate:pl,name:'',createdAt:Date.now(),gistId:g,data:emptyData()};
+      target=pl;
+    }
+  }
+  if(DB.profiles[target].gistId!==g.trim()) DB.profiles[target].gistId=g.trim();
+  DB.lastPlate=target; saveDB();
+  try{ history.replaceState(null,'',location.pathname); }catch(e){}
+}
 
+/* ═══════════════ GitHub Gist 云同步（按车辆） ═══════════════ */
 async function gistPull(){
-  const c=ghCfg();
+  const prof=P(); if(!prof||!prof.gistId) return false;
   try{
-    const h=ghHeaders(); if(lastEtag) h['If-None-Match']=lastEtag;
-    const r=await fetch('https://api.github.com/gists/'+c.gistId,{headers:h,cache:'no-store'});
+    const h={Authorization:'token '+ghToken(),Accept:'application/vnd.github+json'};
+    if(lastEtag) h['If-None-Match']=lastEtag;
+    const r=await fetch('https://api.github.com/gists/'+prof.gistId,{headers:h,cache:'no-store'});
     if(r.status===304) return 'same';
     if(r.status===401||r.status===403) return 'auth';
     if(r.status===404) return 'notfound';
@@ -309,102 +369,49 @@ async function gistPull(){
     const f=g.files&&g.files[GH_FILE];
     if(!f) return 'empty';
     const d=JSON.parse(f.content);
-    return (d && Array.isArray(d.records)) ? d : 'empty';
+    return (d&&Array.isArray(d.records))?d:'empty';
   }catch(e){ return false; }
 }
 function gistPush(){
-  const c=ghCfg();
+  const prof=P(); if(!prof||!prof.gistId) return;
   S.meta={savedAt:Date.now()};
-  fetch('https://api.github.com/gists/'+c.gistId,{method:'PATCH',headers:{...ghHeaders(),'Content-Type':'application/json'},
+  fetch('https://api.github.com/gists/'+prof.gistId,{method:'PATCH',headers:{Authorization:'token '+ghToken(),Accept:'application/vnd.github+json','Content-Type':'application/json'},
     body:JSON.stringify({files:{[GH_FILE]:{content:JSON.stringify(S)}}})})
     .then(r=>{ if(r.status===401||r.status===403){ setSync('ghauth'); }
-      else if(r.ok){ r.json().then(g=>{ lastEtag=''; lastSavedAt=S.meta.savedAt; setSync('ok'); }); }
+      else if(r.ok){ r.json().then(()=>{ lastEtag=''; lastSavedAt=S.meta.savedAt; setSync('ok'); }); }
       else setSync('fail'); })
     .catch(()=>setSync('fail'));
 }
 async function gistCreate(){
-  const c=ghCfg();
+  const prof=P();
   S.meta={savedAt:Date.now()};
-  const r=await fetch('https://api.github.com/gists',{method:'POST',headers:{...ghHeaders(),'Content-Type':'application/json'},
-    body:JSON.stringify({description:'用车费用记账数据（自动维护，请勿手动编辑）',public:false,files:{[GH_FILE]:{content:JSON.stringify(S)}}})});
-  if(r.status===201){ const g=await r.json(); c.gistId=g.id; ghSaveCfg(c); lastSavedAt=S.meta.savedAt; return true; }
+  const r=await fetch('https://api.github.com/gists',{method:'POST',headers:{Authorization:'token '+ghToken(),Accept:'application/vnd.github+json','Content-Type':'application/json'},
+    body:JSON.stringify({description:'用车费用记账 '+plate+'（自动维护，请勿手动编辑）',public:false,files:{[GH_FILE]:{content:JSON.stringify(S)}}})});
+  if(r.status===201){ const g=await r.json(); prof.gistId=g.id; lastSavedAt=S.meta.savedAt; saveDB(); return true; }
   return false;
 }
 
 function setSync(state){
   const el=document.getElementById('syncStatus'); if(!el) return;
   el.style.cursor=''; el.onclick=null;
-  if(state==='ok'){ const b=backend()==='github'?'☁ Gist':'☁'; el.textContent=b+' 已同步 '+new Date().toLocaleTimeString('zh-CN'); }
+  if(state==='ok'){ el.textContent='☁ Gist 已同步 '+new Date().toLocaleTimeString('zh-CN'); }
   else if(state==='synced'){ el.textContent='☁ 已同步其他设备的更新'; show('已同步其他设备的修改'); }
   else if(state==='fail') el.textContent='⚠ 云端不可达，暂存本机';
-  else if(state==='auth'){ el.textContent='🔒 需要访问码'; el.style.cursor='pointer'; el.onclick=askKey; }
   else if(state==='ghauth'){ el.textContent='🔑 令牌无效/云端未连接'; el.style.cursor='pointer'; el.onclick=goSettings; }
   else if(state==='ghneed'){ el.textContent='🔑 请输入 GitHub 令牌'; el.style.cursor='pointer'; el.onclick=goSettings; }
   else el.textContent='本地模式（数据仅存于本浏览器）';
 }
-function writeLocal(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(S)); }catch(e){} }
-async function pullRemote(){
-  if(backend()==='github') return gistPull();
-  if(!serverMode) return false;
-  try{
-    const r=await fetch(apiUrl(),{cache:'no-store'});
-    if(r.status===401) return 'auth';
-    if(!r.ok) return false;
-    const d=await r.json();
-    if(d && Array.isArray(d.records)) return d;
-    return 'empty';
-  }catch(e){ return false; }
-}
-function pushRemote(){
-  if(backend()==='github') return gistPush();
-  if(!serverMode) return;
-  S.meta={savedAt:Date.now()};
-  fetch(apiUrl(),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(S)})
-    .then(r=>{ if(r.status===401){ setSync('auth'); askKey(); }
-      else if(r.ok){ lastSavedAt=S.meta.savedAt; setSync('ok'); } else setSync('fail'); })
-    .catch(()=>setSync('fail'));
-}
-function loadLocalCache(){
-  try{ const raw=localStorage.getItem(LS_KEY); if(raw){ const d=JSON.parse(raw); if(d&&Array.isArray(d.records)) return d; } }catch(e){}
-  return null;
-}
-async function boot(){
-  const be=backend();
-  const remote=await pullRemote();
-  if(be==='github'){
-    if(remote==='auth'){ const d=loadLocalCache(); S=d||buildSeed(); setSync('ghauth'); return; }
-    if(remote==='notfound'){ alert('云端数据 ID 不存在，请检查设置'); const d=loadLocalCache(); S=d||buildSeed(); setSync('ghauth'); return; }
-    if(remote==='same'||remote==='empty'){ const d=loadLocalCache(); S=d||buildSeed(); if(remote==='empty') pushRemote(); else setSync('ok'); }
-    else if(remote){ S=remote; lastSavedAt=(S.meta&&S.meta.savedAt)||0; writeLocal(); setSync('ok'); }
-    else { S=loadLocalCache()||buildSeed(); setSync('fail'); }
-  }
-  else if(remote==='auth'){
-    // 访问码缺失/错误：先用本机缓存展示，并提示输入
-    S=loadLocalCache()||buildSeed();
-    setSync('auth'); askKey(); return;
-  }
-  else if(remote && remote!=='empty'){
-    S=remote; lastSavedAt=(S.meta&&S.meta.savedAt)||0; writeLocal(); setSync('ok');
-  }else{
-    S=loadLocalCache()||buildSeed();
-    writeLocal();
-    if(remote==='empty') pushRemote();          // 服务器空库 → 推送本机数据
-    else setSync('local');
-  }
-  if(!S.nextId) S.nextId=Math.max(0,...S.records.map(r=>r.id))+1;
-  if(!S.nextOt) S.nextOt=Math.max(0,...S.oneTime.map(o=>o.id))+1;
-  const _c=ghCfg();
-  if(_c.gistId&&!_c.token) setSync('ghneed');   // 分享链接打开了，但本机还没输入令牌
-}
+function goSettings(){ document.querySelector('[data-tab="settings"]').click(); document.getElementById('ghToken').focus(); }
 function save(toast){
-  writeLocal();
-  clearTimeout(saveTimer); saveTimer=setTimeout(pushRemote,300);
+  saveDB();
+  clearTimeout(saveTimer);
+  if(backend()==='github') saveTimer=setTimeout(gistPush,300);
   if(toast) show('已保存');
 }
 function show(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),1800); }
 const fmt=(n,d=2)=>(n==null||isNaN(n))?'—':Number(n).toLocaleString('zh-CN',{minimumFractionDigits:0,maximumFractionDigits:d});
 const money=n=>fmt(n,2);
-function years(){ const ys=new Set(S.records.map(r=>r.y)); S.oneTime.forEach(o=>ys.add(o.year)); Object.keys(S.fixed).forEach(y=>ys.add(+y)); return [...ys].sort(); }
+function years(){ const ys=new Set(S.records.map(r=>r.y)); S.oneTime.forEach(o=>ys.add(o.year)); Object.keys(S.fixed).forEach(y=>ys.add(+y)); if(!ys.size) ys.add(new Date().getFullYear()); return [...ys].sort(); }
 
 /* ═══════════════ 数据聚合 ═══════════════ */
 function monthAgg(y){
@@ -443,7 +450,6 @@ const baseOpt=(yTitle)=>({responsive:true,maintainAspectRatio:false,
 
 function renderOverview(){
   const y=curYear, agg=monthAgg(y), t=yearAgg(y);
-  // KPI
   const fx=S.fixed[y]||{insurance:0,pass:0,other:0};
   const kpis=[
     ['油电总支出(元)',money(t.energy),'c-green',`充电 ${money(t.charge)} / 加油 ${money(t.fuel)}`],
@@ -456,30 +462,25 @@ function renderOverview(){
     ['年度总费用(元)',money(t.total),'c-red','油电+用车+固定费用']];
   document.getElementById('kpiRow').innerHTML=kpis.map(k=>
     `<div class="kpi"><div class="lab">${k[0]}</div><div class="val ${k[2]}">${k[1]}</div><div class="ext">${k[3]}</div></div>`).join('');
-  // 月度构成堆叠柱
   mkChart('chMonthly',{type:'bar',data:{labels:MO,datasets:[
       {label:'充电',data:MO.map((_,i)=>agg[i+1].charge),backgroundColor:'#10b981',stack:'s'},
       {label:'加油',data:MO.map((_,i)=>agg[i+1].fuel),backgroundColor:'#f59e0b',stack:'s'},
       {label:'用车费用',data:MO.map((_,i)=>agg[i+1].expense),backgroundColor:'#3b82f6',stack:'s'}]},
     options:{...baseOpt('元'),plugins:{legend:{labels:{boxWidth:12}},tooltip:{callbacks:{footer:items=>'合计: '+money(items.reduce((s,i)=>s+i.parsed.y,0))}}},scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,grid:gridOpt}}}});
-  // 每公里成本
   const perKm=MO.map((_,i)=>{const a=agg[i+1];return a.mileage>0?(a.charge+a.fuel)/a.mileage:null;});
   mkChart('chPerKm',{data:{labels:MO,datasets:[
       {type:'bar',label:'里程(公里)',data:MO.map((_,i)=>agg[i+1].mileage),backgroundColor:'#e0e7ff',yAxisID:'y1'},
       {type:'line',label:'油电成本(元/公里)',data:perKm,borderColor:'#ef4444',backgroundColor:'#ef4444',tension:.3,spanGaps:false}]},
     options:{...baseOpt('元/公里'),scales:{y:{grid:gridOpt},y1:{position:'right',grid:{display:false},title:{display:true,text:'公里',font:{size:11}}},x:{grid:{display:false}}}}});
-  // 能源单价
   mkChart('chUnitPrice',{type:'line',data:{labels:MO,datasets:[
       {label:'充电单价(元/kWh)',data:MO.map((_,i)=>agg[i+1].capC>0?agg[i+1].charge/agg[i+1].capC:null),borderColor:'#10b981',backgroundColor:'#10b981',tension:.3,spanGaps:false},
       {label:'加油单价(元/L)',data:MO.map((_,i)=>agg[i+1].capF>0?agg[i+1].fuel/agg[i+1].capF:null),borderColor:'#f59e0b',backgroundColor:'#f59e0b',tension:.3,spanGaps:false}]},
     options:baseOpt('元')});
-  // 用途构成
   const cats={};
   S.records.filter(r=>r.type==='expense'&&r.y===y).forEach(r=>{const c=purposeCat(r.purpose);cats[c]=(cats[c]||0)+r.amount;});
   const colors={'停车费':'#3b82f6','高速/通行':'#8b5cf6','补胎/维保':'#ef4444','其他':'#94a3b8'};
   mkChart('chPurpose',{type:'doughnut',data:{labels:Object.keys(cats),datasets:[{data:Object.values(cats),backgroundColor:Object.keys(cats).map(c=>colors[c]||'#94a3b8')}]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right'},tooltip:{callbacks:{label:c=>c.label+': '+money(c.parsed)+' 元 ('+(c.parsed/Object.values(cats).reduce((a,b)=>a+b,0)*100).toFixed(1)+'%)'}}}}});
-  // 月度明细表
   let h='<thead><tr><th class="l">月份</th><th>充电(元)</th><th>充电量(kWh)</th><th>加油(元)</th><th>加油量(L)</th><th>用车费用(元)</th><th>里程(公里)</th><th>油电合计(元)</th><th>元/公里</th></tr></thead><tbody>';
   let tc=0,tf=0,te=0,tm=0;
   for(let m=1;m<=12;m++){const a=agg[m];tc+=a.charge;tf+=a.fuel;te+=a.expense;tm+=a.mileage;
@@ -532,19 +533,16 @@ function renderTrend(){
   const cur=monthSeries(y), prev=monthSeries(y-1);
   const neutral=mk==='mileage';
   document.getElementById('trendYearNote').textContent=`当前：${y} 年 · 同比基准：${y-1} 年`;
-  // 月度环比变化率柱状图
   const mom=cur.map((c,i)=>i===0?null:pct(c[mk],cur[i-1][mk]));
   mkChart('chMom',{type:'bar',data:{labels:MO,datasets:[{label:mname+' 环比(%)',data:mom,
       backgroundColor:mom.map(v=>v==null?'#e5e9f0':(neutral?'#3b82f6':(v>0?'#ef4444':'#10b981'))),borderRadius:3}]},
     options:{...baseOpt('%'),plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.y==null?'无环比数据（缺上月）':'环比 '+(c.parsed.y>0?'+':'')+c.parsed.y.toFixed(1)+'%'}}}}});
-  // 当年 vs 去年同月
   mkChart('chYoY',{type:'bar',data:{labels:MO,datasets:[
       {label:y+'年 油电',data:cur.map(c=>c.energy),backgroundColor:'#3b82f6',borderRadius:3},
       {label:(y-1)+'年 油电',data:prev.map(c=>c.energy),backgroundColor:'#cbd5e1',borderRadius:3}]},
     options:{...baseOpt('元'),plugins:{legend:{labels:{boxWidth:12}},tooltip:{callbacks:{afterBody:items=>{
       const i=items[0].dataIndex,p=pct(cur[i].energy,prev[i].energy);
       return p==null?'':('同比 '+(p>0?'+':'')+p.toFixed(1)+'%');}}}}}});
-  // 月度环比/同比明细表
   let h='<thead><tr><th class="l">月份</th><th>油电(元)</th><th>环比</th><th>同比</th><th>用车费用(元)</th><th>环比</th><th>里程(公里)</th><th>环比</th><th>元/公里</th><th>环比</th><th>充电单价(元/kWh)</th><th>环比</th></tr></thead><tbody>';
   for(let i=0;i<12;i++){
     const c=cur[i],p=i>0?cur[i-1]:null,lp=prev[i];
@@ -556,7 +554,6 @@ function renderTrend(){
     <td>${c.unitC?money(c.unitC):'—'}</td><td>${pctHtml(pct(c.unitC,p&&p.unitC))}</td></tr>`;
   }
   document.getElementById('mTrendTable').innerHTML=h+'</tbody>';
-  // 年度同比对比表
   const ys=years(),T={}; ys.forEach(v=>T[v]=yearAgg(v));
   let h2='<thead><tr><th class="l">年份</th><th>油电合计(元)</th><th>同比</th><th>用车费用(元)</th><th>同比</th><th>年总费用(元)</th><th>同比</th><th>里程(公里)</th><th>同比</th><th>元/公里</th><th>同比</th><th>充电单价</th><th>同比</th></tr></thead><tbody>';
   ys.forEach(v=>{const t=T[v],p=T[v-1]||null;
@@ -606,23 +603,25 @@ function syncFormFields(){
 
 /* ═══════════════ 设置页 ═══════════════ */
 function renderGhPanel(){
-  const c=ghCfg(), st=document.getElementById('ghStatus'), btnShare=document.getElementById('btnGhShare');
-  if(c.token&&c.gistId){
-    st.textContent='已连接 · 数据ID: '+c.gistId.slice(0,8)+'…（GitHub 私密 Gist）';
+  const prof=P(), st=document.getElementById('ghStatus'), btnShare=document.getElementById('btnGhShare');
+  const tk=ghToken();
+  if(tk&&prof.gistId){
+    st.textContent='已连接 · 数据ID: '+prof.gistId.slice(0,8)+'…（GitHub 私密 Gist）';
     st.style.color='#10b981'; btnShare.style.display='';
-    document.getElementById('ghGistId').value=c.gistId;
-    document.getElementById('ghToken').placeholder=c.token.slice(0,7)+'••••（已保存，留空保持不变）';
-  }else if(c.gistId){
+    document.getElementById('ghGistId').value=prof.gistId;
+    document.getElementById('ghToken').placeholder=tk.slice(0,7)+'••••（已保存，留空保持不变）';
+  }else if(prof.gistId){
     st.textContent='已指定数据 ID，请输入令牌'; st.style.color='#f59e0b'; btnShare.style.display='none';
-    document.getElementById('ghGistId').value=c.gistId;
+    document.getElementById('ghGistId').value=prof.gistId;
   }else{
     st.textContent='未连接'; st.style.color='var(--sub)'; btnShare.style.display='none';
+    document.getElementById('ghGistId').value='';
   }
 }
 function renderSettings(){
   renderGhPanel();
   const y=curYear;
-  document.getElementById('mileTitle').textContent=`${y} 年每月行驶里程（公里）`;
+  document.getElementById('mileTitle').textContent=`${plate} · ${y} 年每月行驶里程（公里）`;
   document.getElementById('mileGrid').innerHTML=MO.map((n,i)=>
     `<div class="fld"><label>${n}</label><input type="number" step="0.1" min="0" id="mile_${i+1}" value="${S.mileage[y+'-'+(i+1)]||''}"></div>`).join('');
   const fx=S.fixed[y]||{insurance:0,pass:0,other:0};
@@ -640,10 +639,73 @@ function renderOtTable(){
 }
 window.delOt=function(id){ if(!confirm('确定删除？'))return; S.oneTime=S.oneTime.filter(o=>o.id!==id); save(); renderOtTable(); };
 
+/* ═══════════════ 车辆档案库 ═══════════════ */
+function profStats(prof){
+  const d=prof.data; const n=d.records.length;
+  const sum=d.records.reduce((s,r)=>s+r.amount,0);
+  const ys=[...new Set(d.records.map(r=>r.y))].sort();
+  return {n,sum,span:ys.length?`${ys[0]}–${ys[ys.length-1]}`:'暂无记录'};
+}
+function renderGarage(){
+  const list=Object.values(DB.profiles).sort((a,b)=>a.createdAt-b.createdAt);
+  document.getElementById('garageCards').innerHTML=list.map(prof=>{
+    const st=profStats(prof);
+    const cloud=prof.gistId?'☁ 已连云端':'💾 本地存储';
+    return `<div class="carcard">
+      <span class="syncb" style="color:${prof.gistId?'var(--green)':'var(--sub)'}">${cloud}</span>
+      <div class="plate">${prof.plate}</div>
+      <div class="meta">${prof.name?prof.name+'<br>':''}${st.span} · ${st.n} 条记录 · 支出 ${money(st.sum)} 元</div>
+      <div class="ops"><button class="btn mini" onclick="enterCar('${prof.plate}')">进入档案</button>
+      <button class="btn mini red" onclick="delCar('${prof.plate}')">删除</button></div>
+    </div>`;}).join('');
+}
+window.enterCar=function(p){ openProfile(p); };
+window.delCar=function(p){
+  const prof=DB.profiles[p]; if(!prof) return;
+  if(!confirm(`确定删除车辆档案 ${p}？\n本地记录将被清除${prof.gistId?'（GitHub 上的云端数据不会自动删除）':''}。`)) return;
+  delete DB.profiles[p];
+  if(DB.lastPlate===p) DB.lastPlate=Object.keys(DB.profiles)[0]||'';
+  saveDB(); renderGarage(); show('已删除档案');
+};
+function showGarage(){
+  document.getElementById('appView').style.display='none';
+  document.getElementById('garageView').style.display='';
+  document.getElementById('hdrRight').style.display='none';
+  document.getElementById('plateBadge').textContent='我的车辆档案';
+  document.title='用车费用记账与分析';
+  renderGarage();
+}
+function showApp(){
+  document.getElementById('garageView').style.display='none';
+  document.getElementById('appView').style.display='';
+  document.getElementById('hdrRight').style.display='';
+}
+async function openProfile(p){
+  plate=p; DB.lastPlate=p; saveDB();
+  S=P().data; fixIds();
+  lastEtag=''; lastSavedAt=(S.meta&&S.meta.savedAt)||0;
+  editingId=null; editingOt=null;
+  showApp();
+  document.title=plate+' · 用车费用记账与分析';
+  document.getElementById('plateBadge').textContent='当前车辆：'+plate+(P().name?' · '+P().name:'');
+  if(P().gistId&&!ghToken()){ setSync('ghneed'); }
+  else if(backend()==='github'){
+    const remote=await gistPull();
+    if(remote==='auth') setSync('ghauth');
+    else if(remote==='notfound'){ alert('云端数据 ID 不存在，请检查设置'); setSync('ghauth'); }
+    else if(remote==='empty') gistPush();
+    else if(remote==='same') setSync('ok');
+    else if(remote){ S=remote; P().data=S; fixIds(); saveDB(); setSync('ok'); }
+    else setSync('fail');
+  } else setSync('local');
+  if(!years().includes(curYear)) curYear=years()[years().length-1];
+  initYears(); refresh();
+}
+
 /* ═══════════════ 导入导出 ═══════════════ */
 function exportJson(){
   const blob=new Blob([JSON.stringify(S,null,1)],{type:'application/json'});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='用车费用数据.json'; a.click(); URL.revokeObjectURL(a.href);
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`用车费用-${plate}.json`; a.click(); URL.revokeObjectURL(a.href);
 }
 function exportCsv(){
   let s='\ufeff日期,类型,金额,容量,用途\n';
@@ -652,7 +714,7 @@ function exportCsv(){
     const ds=r.d===0?`${r.y}-${r.m}-家充桩`:`${r.y}-${r.m}-${r.d}`;
     s+=`${ds},${tn[r.type]},${r.amount},${r.cap||''},${(r.purpose||'').replace(/,/g,'，')}\n`;});
   const blob=new Blob([s],{type:'text/csv;charset=utf-8'});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='用车费用记录.csv'; a.click(); URL.revokeObjectURL(a.href);
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`用车费用-${plate}.csv`; a.click(); URL.revokeObjectURL(a.href);
 }
 
 /* ═══════════════ 初始化与事件 ═══════════════ */
@@ -663,9 +725,8 @@ function initYears(){
   document.getElementById('fltYear').innerHTML='<option value="">全部年份</option>'+ys.map(y=>`<option value="${y}">${y} 年</option>`).join('');
 }
 async function init(){
-  await boot();
-  if(!years().includes(curYear)) curYear=years()[years().length-1];
-  initYears();
+  DB=loadDB();
+  handleShareParams();
   const now=new Date();
   document.getElementById('fDate').value=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
   document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
@@ -673,6 +734,15 @@ async function init(){
     document.querySelectorAll('section.tab').forEach(x=>x.classList.remove('active'));
     b.classList.add('active'); document.getElementById('tab-'+b.dataset.tab).classList.add('active');
   });
+  document.getElementById('btnSwitchCar').onclick=showGarage;
+  document.getElementById('btnCreateCar').onclick=()=>{
+    const pl=(document.getElementById('newPlate').value||'').trim().toUpperCase();
+    const name=document.getElementById('newCarName').value.trim();
+    if(!validPlate(pl)){show('车牌格式不正确（示例：浙AGA6939，新能源 8 位）');return;}
+    if(DB.profiles[pl]){show('该车牌档案已存在，直接进入');openProfile(pl);return;}
+    DB.profiles[pl]={plate:pl,name,createdAt:Date.now(),gistId:'',data:emptyData()};
+    saveDB(); openProfile(pl); show('档案已创建，开始记录吧');
+  };
   document.getElementById('yearSel').onchange=e=>{curYear=+e.target.value; refresh();};
   document.getElementById('momMetric').onchange=renderTrend;
   document.getElementById('fType').onchange=syncFormFields;
@@ -716,75 +786,77 @@ async function init(){
   document.getElementById('btnCsv').onclick=exportCsv;
   document.getElementById('fileImport').onchange=e=>{
     const f=e.target.files[0]; if(!f)return;
+    if(!confirm('导入将覆盖当前车辆（'+plate+'）的全部数据，继续？')){e.target.value='';return;}
     const rd=new FileReader();
     rd.onload=()=>{ try{ const d=JSON.parse(rd.result);
       if(!d.records||!Array.isArray(d.records)){alert('文件格式不正确');return;}
-      S=d; if(!S.nextId)S.nextId=Math.max(...S.records.map(r=>r.id),0)+1;
-      if(!S.nextOt)S.nextOt=Math.max(...S.oneTime.map(o=>o.id),0)+1;
+      S=d; P().data=S; fixIds();
       save(); initYears(); refresh(); show('导入成功');
     }catch(err){alert('导入失败：'+err.message);} };
     rd.readAsText(f); e.target.value='';
   };
   document.getElementById('btnReset').onclick=()=>{
-    if(!confirm('确定丢弃当前修改，恢复为初始数据？'))return;
-    S=buildSeed(); save(); initYears(); refresh(); show('已重置');
+    if(!confirm(`确定把 ${plate} 的数据重置为${plate===SAMPLE_PLATE?'初始示例数据':'空档案'}？已连云端的数据也会被覆盖。`))return;
+    S=(plate===SAMPLE_PLATE)?buildSeed():emptyData(); P().data=S; fixIds();
+    save(); initYears(); refresh(); show('已重置');
   };
-  // ── GitHub 云端同步 ──
+  // ── GitHub 云端同步（按车辆） ──
   document.getElementById('btnGhConnect').onclick=async()=>{
     const token=document.getElementById('ghToken').value.trim();
     const gistId=document.getElementById('ghGistId').value.trim();
-    const c=ghCfg(); const tk=token||c.token;
+    const prof=P(); const tk=token||ghToken();
     if(!tk){show('请先创建并粘贴 GitHub 令牌');return;}
+    if(token) ghSaveToken(token);
     const btn=document.getElementById('btnGhConnect');
     btn.disabled=true; btn.textContent='连接中…';
-    ghSaveCfg({token:tk,gistId:gistId||c.gistId||''});
-    if(gistId){
+    const oldGist=prof.gistId; prof.gistId=gistId||prof.gistId||''; saveDB();
+    if(prof.gistId){
+      lastEtag='';
       const r=await gistPull();
       btn.disabled=false; btn.textContent='连接云端';
-      if(r==='auth'){alert('令牌无效或缺少 gist 权限');return;}
-      if(r==='notfound'){alert('云端数据 ID 不存在');return;}
-      if(r===false){alert('无法连接 GitHub，请检查网络');return;}
+      if(r==='auth'){alert('令牌无效或缺少 gist 权限');prof.gistId=oldGist;saveDB();return;}
+      if(r==='notfound'){alert('云端数据 ID 不存在');prof.gistId=oldGist;saveDB();return;}
+      if(r===false){alert('无法连接 GitHub，请检查网络');prof.gistId=oldGist;saveDB();return;}
       location.reload();
     }else{
-      if(!confirm('将在你的 GitHub 账号下新建一个私密 Gist，并把当前数据上传为云端数据，继续？')){
-        ghSaveCfg(c); btn.disabled=false; btn.textContent='连接云端'; return;
+      if(!confirm(`将为 ${plate} 在你的 GitHub 账号下新建一个私密 Gist，并把当前数据上传为云端数据，继续？`)){
+        btn.disabled=false; btn.textContent='连接云端'; return;
       }
       const ok=await gistCreate();
       btn.disabled=false; btn.textContent='连接云端';
       if(ok){ show('云端数据已创建'); setTimeout(()=>location.reload(),700); }
-      else{ ghSaveCfg(c); alert('创建失败：令牌无效或网络错误'); }
+      else alert('创建失败：令牌无效或网络错误');
     }
   };
   document.getElementById('btnGhDisconnect').onclick=()=>{
-    if(!confirm('断开云端同步？云端数据仍保留在你的 GitHub 中，仅本设备不再同步。'))return;
-    localStorage.removeItem(GH_KEY); location.reload();
+    if(!confirm('断开本车的云端同步？云端数据仍保留在你的 GitHub 中，仅本设备不再同步。'))return;
+    P().gistId=''; saveDB(); renderGhPanel(); setSync('local'); show('已断开');
   };
   document.getElementById('btnGhShare').onclick=()=>{
-    const c=ghCfg();
+    const prof=P();
     if(location.origin&&location.origin!=='null'){
-      const url=location.origin+location.pathname+'?gist='+c.gistId;
+      const url=location.origin+location.pathname+'?gist='+prof.gistId+'&plate='+encodeURIComponent(plate);
       if(navigator.clipboard&&navigator.clipboard.writeText){
         navigator.clipboard.writeText(url).then(()=>show('接入链接已复制')).catch(()=>prompt('请复制以下链接：',url));
       }else prompt('请复制以下链接：',url);
     }else{
-      prompt('本地文件模式无法生成链接。请在其他设备打开本页面后，输入云端数据 ID：',c.gistId);
+      prompt('本地文件模式无法生成链接。请在其他设备打开本页面后，输入云端数据 ID：',prof.gistId);
     }
   };
-  refresh();
   // 多设备同步：每 10 秒检查云端是否有更新的版本
-  if(backend()!=='local'){
-    setInterval(async()=>{
-      const d=await pullRemote();
-      const localTs=(S.meta&&S.meta.savedAt)||0;
-      if(d && d!=='empty' && d.meta && d.meta.savedAt>localTs && d.meta.savedAt>lastSavedAt){
-        S=d; lastSavedAt=d.meta.savedAt; writeLocal();
-        if(!S.nextId) S.nextId=Math.max(0,...S.records.map(r=>r.id))+1;
-        if(!S.nextOt) S.nextOt=Math.max(0,...S.oneTime.map(o=>o.id))+1;
-        if(!years().includes(curYear)) curYear=years()[years().length-1];
-        initYears(); refresh(); setSync('synced');
-      }
-    },10000);
-  }
+  setInterval(async()=>{
+    if(!S||backend()!=='github') return;
+    const d=await gistPull();
+    const localTs=(S.meta&&S.meta.savedAt)||0;
+    if(d && d!=='empty' && d.meta && d.meta.savedAt>localTs && d.meta.savedAt>lastSavedAt){
+      S=d; P().data=S; fixIds(); saveDB();
+      if(!years().includes(curYear)) curYear=years()[years().length-1];
+      initYears(); refresh(); setSync('synced');
+    }
+  },10000);
+  // 进入上次的档案；若无档案则停在档案库页面
+  const target=DB.lastPlate&&DB.profiles[DB.lastPlate]?DB.lastPlate:null;
+  if(target) await openProfile(target); else showGarage();
 }
 init();
 </script>
