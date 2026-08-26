@@ -89,6 +89,13 @@
   .helpbody li{margin:2px 0;}
   /* 解锁提示条 */
   #unlockBar{border-color:var(--orange)!important; background:#fffbeb;}
+  /* 意见建议留言板 */
+  #msgText{width:100%; min-height:70px; resize:vertical;}
+  .msg{border:1px solid #eef1f6; border-radius:8px; padding:10px 12px; margin-bottom:8px; background:#fafbfd;}
+  .msg .mhead{display:flex; align-items:center; gap:10px; font-size:12.5px; margin-bottom:4px;}
+  .msg .mtime{color:var(--sub); font-weight:400;}
+  .msg .mhead .del{margin-left:auto;}
+  .msg .mbody{font-size:13px; color:var(--ink); line-height:1.7; word-break:break-word;}
 </style>
 </head>
 <body>
@@ -125,6 +132,15 @@
     <h3>示例档案 <span class="note" style="color:#10b981">无需密码 · 可直接体验全部功能</span></h3>
     <div class="demo-card" id="demoCard"></div>
   </div>
+  <div class="panel">
+    <h3>💬 意见建议留言板 <span class="note">留言保存在本机浏览器</span></h3>
+    <div class="form-row" style="align-items:flex-end">
+      <div class="fld"><label>昵称（可选）</label><input type="text" id="msgNick" maxlength="12" style="width:150px" placeholder="匿名"></div>
+      <div class="fld" style="flex:1"><label>意见或建议</label><textarea id="msgText" maxlength="300" placeholder="欢迎留下你的使用感受或改进建议…"></textarea></div>
+      <button class="btn" id="btnMsgSend">发表留言</button>
+    </div>
+    <div id="msgList" style="margin-top:12px"></div>
+  </div>
 </div>
 
 <!-- ═══ 主应用 ═══ -->
@@ -139,9 +155,9 @@
 <main>
   <div class="panel" id="unlockBar" style="display:none">
     <h3>🔒 该档案已加密，输入密码后查看具体数据</h3>
-    <div style="font-size:12.5px;color:var(--sub);margin-bottom:10px">默认密码为车牌后四位数字；管理员可使用管理员密码。未解锁前，档案内所有数字以 <b>*</b> 显示。</div>
+    <div style="font-size:12.5px;color:var(--sub);margin-bottom:10px">默认密码为车牌后四位。未解锁前，档案内所有数字以 <b>*</b> 显示。</div>
     <div class="form-row">
-      <div class="fld"><input type="password" id="unlockPwd" inputmode="numeric" style="width:200px" placeholder="请输入密码" autocomplete="off"></div>
+      <div class="fld"><input type="password" id="unlockPwd" maxlength="6" style="width:200px" placeholder="请输入密码" autocomplete="off"></div>
       <button class="btn" id="btnDoUnlock">解锁</button>
     </div>
   </div>
@@ -239,9 +255,9 @@
   <section id="tab-settings" class="tab">
     <div class="panel" id="pwdPanel">
       <h3>档案密码 <span class="note" id="pwdStatus"></span></h3>
-      <div style="font-size:12.5px;color:var(--sub);margin-bottom:10px">进入本档案时需输入密码，默认密码为车牌后四位数字。修改后的密码随档案数据同步到你在各设备的云端。</div>
+      <div style="font-size:12.5px;color:var(--sub);margin-bottom:10px">进入本档案时需输入密码，默认密码为车牌后四位（数字或字母）。修改后的密码随档案数据同步到你在各设备的云端。</div>
       <div class="form-row">
-        <div class="fld"><label>新密码（纯数字，位数不限）</label><input type="password" id="newPwd" inputmode="numeric" style="width:230px" placeholder="留空不修改" autocomplete="off"></div>
+        <div class="fld"><label>新密码（数字或字母，6 位以内）</label><input type="password" id="newPwd" maxlength="6" style="width:230px" placeholder="数字或字母，≤6 位" autocomplete="off"></div>
         <button class="btn" id="btnSavePwd">保存密码</button>
         <button class="btn gray" id="btnResetPwd">恢复默认密码</button>
       </div>
@@ -309,9 +325,8 @@
       </ul>
       <h4>三、关于档案密码</h4>
       <ul>
-        <li>每个档案默认密码为车牌中的后四位数字；进入后可在「里程与费用设置」里修改（纯数字、位数不限）。</li>
+        <li>每个档案默认密码为车牌后四位（数字或字母）；进入后可在「里程与费用设置」里修改为 6 位以内的数字或字母。</li>
         <li>未输入正确密码前，档案内所有具体数字以 * 号显示，以保护隐私。</li>
-        <li>管理员可使用管理员密码进入任意档案。</li>
       </ul>
       <h4>四、如何记账</h4>
       <ul>
@@ -419,12 +434,14 @@ const unlocked=new Set();   // 本次会话已解锁的车牌
 let viewLocked=false;       // 当前档案是否处于加密未解锁状态（数字打码）
 
 function masked(){ return viewLocked; }          // 未解锁时数字以 * 显示
-function defaultPwd(pl){ return pl.replace(/[^0-9]/g,'').slice(-4); }
+function defaultPwd(pl){ return pl.slice(-4); }  // 车牌后四位（含数字或字母）
 function needsPwd(prof){ return !prof.noPwd; }  // 示例档案无需密码
 function profPwd(prof){ return needsPwd(prof) ? ((prof.data&&prof.data.pwd)||defaultPwd(prof.plate)) : null; }
+const normPwd=s=>(s||'').trim().toUpperCase();
 function checkPwd(prof,input){
   if(!needsPwd(prof)) return true;              // 示例档案
-  return input===ADMIN_PWD || input===profPwd(prof);
+  const v=normPwd(input);
+  return v===ADMIN_PWD || v===normPwd(profPwd(prof));
 }
 
 function P(){ return DB.profiles[plate]; }
@@ -752,7 +769,7 @@ function renderSettings(){
   const pwdPanel=document.getElementById('pwdPanel');
   if(!needsPwd(P())){ ps.textContent='示例档案 · 无需密码'; ps.style.color='#10b981'; pwdPanel.style.opacity='.55'; }
   else { pwdPanel.style.opacity='';
-    ps.textContent=S.pwd?'已设置自定义密码':'当前为默认密码（车牌后四位数字）';
+    ps.textContent=S.pwd?'已设置自定义密码':'当前为默认密码（车牌后四位）';
     ps.style.color=S.pwd?'#10b981':'var(--sub)'; }
   document.getElementById('dangerPanel').style.display=(needsPwd(P())&&!masked())?'':'none';
   const y=curYear;
@@ -792,8 +809,25 @@ function renderMain(){
     <div class="dplate">${DEMO_PLATE}<span class="dtag">示例</span></div>
     <div class="dmeta">用于演示的虚拟车辆，内置 ${st.n} 条记录（${st.span}），包含充电、加油、用车费用、里程与固定费用。<br>无需密码，可随意体验记账、统计、环比/同比等全部功能。</div>
     <button class="btn" onclick="enterCar('${DEMO_PLATE}')">进入示例档案</button>`;
+  renderMsgs();
 }
 window.enterCar=function(p){ openProfile(p); };
+/* 示例档案：退出后恢复初设状态 */
+function resetDemo(){ const d=DB.profiles[DEMO_PLATE]; if(d){ d.data=buildDemo(); saveDB(); } }
+/* ═══════════════ 意见建议留言板 ═══════════════ */
+const MSG_KEY='carExpenseMsgs';
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function loadMsgs(){ try{ const a=JSON.parse(localStorage.getItem(MSG_KEY)); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
+function saveMsgs(a){ try{ localStorage.setItem(MSG_KEY,JSON.stringify(a)); }catch(e){} }
+function renderMsgs(){
+  const el=document.getElementById('msgList'); if(!el) return;
+  const a=loadMsgs();
+  if(!a.length){ el.innerHTML='<div style="color:var(--sub);font-size:13px">还没有留言，来写下第一条吧～</div>'; return; }
+  el.innerHTML=a.map(m=>`<div class="msg">
+    <div class="mhead"><b>${esc(m.nick)||'匿名'}</b><span class="mtime">${esc(m.time)}</span><button class="del" onclick="delMsg(${m.id})">删除</button></div>
+    <div class="mbody">${esc(m.text).replace(/\n/g,'<br>')}</div></div>`).join('');
+}
+window.delMsg=function(id){ if(!confirm('删除这条留言？'))return; saveMsgs(loadMsgs().filter(m=>m.id!==id)); renderMsgs(); };
 /* 档案内解锁：默认密码/自定义密码/管理员密码 */
 function doUnlock(){
   const v=(document.getElementById('unlockPwd').value||'').trim();
@@ -812,6 +846,7 @@ window.delCar=function(p){
   saveDB(); showGarage(); show('已删除档案');
 };
 function showGarage(){
+  if(plate===DEMO_PLATE) resetDemo();   // 退出示例档案时复位
   document.getElementById('appView').style.display='none';
   document.getElementById('garageView').style.display='';
   document.getElementById('hdrRight').style.display='none';
@@ -825,6 +860,7 @@ function showApp(){
   document.getElementById('hdrRight').style.display='';
 }
 async function openProfile(p){
+  if(plate===DEMO_PLATE&&p!==DEMO_PLATE) resetDemo();  // 从示例档案切走时复位
   plate=p; DB.lastPlate=p; saveDB();
   S=P().data; fixIds();
   lastEtag=''; lastSavedAt=(S.meta&&S.meta.savedAt)||0;
@@ -873,6 +909,7 @@ function initYears(){
 }
 async function init(){
   DB=loadDB();
+  resetDemo();   // 示例档案始终保持初设状态
   const shareTarget=handleShareParams();
   const now=new Date();
   document.getElementById('fDate').value=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
@@ -898,12 +935,21 @@ async function init(){
   window.createCar=function(pl){
     const name=(document.getElementById('createName').value||'').trim();
     DB.profiles[pl]={plate:pl,name,createdAt:Date.now(),gistId:'',data:emptyData()};
-    saveDB(); unlocked.add(pl); openProfile(pl); show('档案已创建，默认密码为车牌后四位数字');
+    saveDB(); unlocked.add(pl); openProfile(pl); show('档案已创建，默认密码为车牌后四位');
   };
   document.getElementById('btnSearchCar').onclick=searchCar;
   document.getElementById('searchPlate').onkeydown=e=>{ if(e.key==='Enter') searchCar(); };
   document.getElementById('btnHelp').onclick=()=>{ document.getElementById('helpMask').style.display='flex'; };
   document.getElementById('btnHelpClose').onclick=()=>{ document.getElementById('helpMask').style.display='none'; };
+  // ── 意见建议留言板 ──
+  document.getElementById('btnMsgSend').onclick=()=>{
+    const text=document.getElementById('msgText').value.trim();
+    if(!text){ show('请输入留言内容'); return; }
+    const nick=document.getElementById('msgNick').value.trim();
+    const a=loadMsgs(); const now=new Date(); const pad=n=>String(n).padStart(2,'0');
+    a.unshift({id:Date.now(),nick,text,time:`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`});
+    saveMsgs(a); document.getElementById('msgText').value=''; renderMsgs(); show('留言已发表');
+  };
   // ── 档案内解锁 ──
   document.getElementById('btnDoUnlock').onclick=doUnlock;
   document.getElementById('unlockPwd').onkeydown=e=>{ if(e.key==='Enter') doUnlock(); };
@@ -911,15 +957,15 @@ async function init(){
   document.getElementById('btnSavePwd').onclick=()=>{
     if(!needsPwd(P())){show('示例档案无需设置密码');return;}
     if(masked()){show('请先解锁档案');return;}
-    const v=document.getElementById('newPwd').value.trim();
-    if(!/^\d+$/.test(v)){show('密码必须是纯数字（位数不限）');return;}
+    const v=normPwd(document.getElementById('newPwd').value);
+    if(!/^[A-Z0-9]{1,6}$/.test(v)){show('密码限 6 位以内的数字或字母');return;}
     S.pwd=v; unlocked.delete(plate); save(); document.getElementById('newPwd').value='';
     renderSettings(); show('密码已更新，下次进入需使用新密码');
   };
   document.getElementById('btnResetPwd').onclick=()=>{
     if(!needsPwd(P())){show('示例档案无需设置密码');return;}
     if(masked()){show('请先解锁档案');return;}
-    if(!confirm('恢复默认密码（车牌后四位数字）？'))return;
+    if(!confirm('恢复默认密码（车牌后四位）？'))return;
     delete S.pwd; unlocked.delete(plate); save(); renderSettings(); show('已恢复默认密码');
   };
   document.getElementById('yearSel').onchange=e=>{curYear=+e.target.value; refresh();};
