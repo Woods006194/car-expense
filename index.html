@@ -75,12 +75,20 @@
   .carcard .meta{color:var(--sub); font-size:12px; margin:8px 0 12px; line-height:1.8;}
   .carcard .syncb{position:absolute; top:14px; right:14px; font-size:11px;}
   .carcard .ops{display:flex; gap:8px;}
-  /* 档案密码弹窗 */
-  #lockMask{position:fixed; inset:0; background:rgba(15,23,42,.45); display:flex; align-items:center; justify-content:center; z-index:50;}
-  .lockbox{background:#fff; border-radius:12px; padding:26px 30px; width:320px; text-align:center; box-shadow:0 10px 40px rgba(15,23,42,.25);}
-  .lockbox .plate{font-size:20px; font-weight:800; letter-spacing:1px;}
-  .lockbox .hint{font-size:12px; color:var(--sub); margin:8px 0 12px; line-height:1.7;}
-  .lockbox input{width:100%; text-align:center; font-size:18px; letter-spacing:6px;}
+  /* 主页面：示例档案卡片 */
+  .demo-card{display:flex; align-items:center; gap:18px; flex-wrap:wrap;}
+  .demo-card .dplate{font-size:22px; font-weight:800; letter-spacing:1px; color:var(--ink);}
+  .demo-card .dmeta{flex:1; min-width:220px; color:var(--sub); font-size:13px; line-height:1.9;}
+  .demo-card .dtag{display:inline-block; background:#fff7ed; color:#c2410c; border:1px solid #fed7aa; border-radius:20px; font-size:11px; padding:2px 10px; margin-left:8px; vertical-align:middle;}
+  /* 使用说明书弹窗 */
+  #helpMask{position:fixed; inset:0; background:rgba(15,23,42,.45); display:flex; align-items:center; justify-content:center; z-index:60;}
+  .helpbox{background:#fff; border-radius:12px; padding:24px 28px; width:min(680px,92vw); max-height:80vh; overflow:auto; box-shadow:0 10px 40px rgba(15,23,42,.25);}
+  .helpbody{font-size:13.5px; color:var(--ink); line-height:2;}
+  .helpbody h4{font-size:14px; margin:12px 0 4px; color:var(--ink);}
+  .helpbody ul{margin:4px 0 8px 20px;}
+  .helpbody li{margin:2px 0;}
+  /* 解锁提示条 */
+  #unlockBar{border-color:var(--orange)!important; background:#fffbeb;}
 </style>
 </head>
 <body>
@@ -100,18 +108,23 @@
 <!-- ═══ 车辆档案库（落地页） ═══ -->
 <div id="garageView">
   <div class="garage-hero">
-    <h2>我的车辆档案</h2>
-    <p>每辆车一份独立档案：记录充电、加油与用车费用，自动统计每公里成本、能源单价，支持月度环比/年度同比对比与云端多设备同步。选择下方档案进入，或输入你的车牌创建新档案。</p>
+    <h2>用车费用记账与分析</h2>
+    <p>每辆车一份独立档案：记录充电、加油与用车费用，自动统计每公里成本、能源单价，支持月度环比/年度同比对比与云端多设备同步。输入车牌号即可进入对应档案，或先体验下方的示例档案。</p>
   </div>
   <div class="panel">
-    <h3>创建新车辆档案</h3>
+    <h3>进入车辆档案</h3>
+    <div style="font-size:12.5px;color:var(--sub);margin-bottom:10px">为保护隐私，这里不展示已建档的车辆列表，请输入你的车牌号进入对应档案。</div>
     <div class="form-row">
-      <div class="fld"><label>车牌号（必填）</label><input type="text" id="newPlate" placeholder="如：浙AGA6939" maxlength="8" style="width:190px;text-transform:uppercase"></div>
-      <div class="fld"><label>车型 / 备注（可选）</label><input type="text" id="newCarName" placeholder="如：问界M7" style="width:190px"></div>
-      <button class="btn" id="btnCreateCar">创建档案</button>
+      <div class="fld"><label>车牌号</label><input type="text" id="searchPlate" placeholder="如：浙AGA6939" maxlength="8" style="width:200px;text-transform:uppercase"></div>
+      <button class="btn" id="btnSearchCar">查找并进入</button>
+      <button class="btn gray" id="btnHelp">使用说明书</button>
     </div>
+    <div id="searchResult" style="margin-top:10px"></div>
   </div>
-  <div class="carcards" id="garageCards"></div>
+  <div class="panel">
+    <h3>示例档案 <span class="note" style="color:#10b981">无需密码 · 可直接体验全部功能</span></h3>
+    <div class="demo-card" id="demoCard"></div>
+  </div>
 </div>
 
 <!-- ═══ 主应用 ═══ -->
@@ -124,6 +137,14 @@
   <button data-tab="settings">里程与费用设置</button>
 </nav>
 <main>
+  <div class="panel" id="unlockBar" style="display:none">
+    <h3>🔒 该档案已加密，输入密码后查看具体数据</h3>
+    <div style="font-size:12.5px;color:var(--sub);margin-bottom:10px">默认密码为车牌后四位数字；管理员可使用管理员密码。未解锁前，档案内所有数字以 <b>*</b> 显示。</div>
+    <div class="form-row">
+      <div class="fld"><input type="password" id="unlockPwd" inputmode="numeric" style="width:200px" placeholder="请输入密码" autocomplete="off"></div>
+      <button class="btn" id="btnDoUnlock">解锁</button>
+    </div>
+  </div>
 
   <!-- ═══ 数据总览 ═══ -->
   <section id="tab-overview" class="tab active">
@@ -142,7 +163,7 @@
 
   <!-- ═══ 记录管理 ═══ -->
   <section id="tab-records" class="tab">
-    <div class="panel">
+    <div class="panel" id="recFormPanel">
       <h3 id="formTitle">添加记录</h3>
       <div class="form-row">
         <div class="fld"><label>类型</label>
@@ -216,7 +237,7 @@
 
   <!-- ═══ 设置 ═══ -->
   <section id="tab-settings" class="tab">
-    <div class="panel">
+    <div class="panel" id="pwdPanel">
       <h3>档案密码 <span class="note" id="pwdStatus"></span></h3>
       <div style="font-size:12.5px;color:var(--sub);margin-bottom:10px">进入本档案时需输入密码，默认密码为车牌后四位数字。修改后的密码随档案数据同步到你在各设备的云端。</div>
       <div class="form-row">
@@ -266,18 +287,43 @@
       </div>
       <div class="scroll"><table id="otTable"></table></div>
     </div>
+    <div class="panel" id="dangerPanel">
+      <h3>危险操作</h3>
+      <div style="font-size:12.5px;color:var(--sub);margin-bottom:10px">删除后本地记录将被清除（已连云端的数据不会自动删除），且无法恢复。</div>
+      <button class="btn red" id="btnDelCar">删除本车档案</button>
+    </div>
   </section>
 </main>
 </div>
-<div id="lockMask" style="display:none">
-  <div class="lockbox">
-    <div class="plate" id="lockPlate"></div>
-    <div class="hint">请输入档案密码（默认：车牌后四位数字）</div>
-    <input type="password" id="lockPwd" inputmode="numeric" autocomplete="off" placeholder="····">
-    <div style="display:flex;gap:8px;justify-content:center;margin-top:14px">
-      <button class="btn" id="btnUnlock">进入档案</button>
-      <button class="btn gray" id="btnLockCancel">取消</button>
+<div id="helpMask" style="display:none">
+  <div class="helpbox">
+    <h3 style="margin-bottom:8px">📖 使用说明书</h3>
+    <div class="helpbody">
+      <h4>一、这个程序是做什么的</h4>
+      <div>为每辆车建立独立档案，记录充电、加油与用车费用，自动计算每公里成本、能源单价，并支持月度环比、年度同比对比与云端多设备同步。</div>
+      <h4>二、如何进入/创建档案</h4>
+      <ul>
+        <li>在主页输入你的车牌号，点「查找并进入」。已有档案则进入；没有则可直接创建新档案。</li>
+        <li>车牌为 7 位或 8 位：首位为汉字，其余为数字或字母（如 浙AGA6939、浙AD12345）。</li>
+        <li>首次进入可先点下方的「示例档案」体验全部功能，示例档案无需密码。</li>
+      </ul>
+      <h4>三、关于档案密码</h4>
+      <ul>
+        <li>每个档案默认密码为车牌中的后四位数字；进入后可在「里程与费用设置」里修改（纯数字、位数不限）。</li>
+        <li>未输入正确密码前，档案内所有具体数字以 * 号显示，以保护隐私。</li>
+        <li>管理员可使用管理员密码进入任意档案。</li>
+      </ul>
+      <h4>四、如何记账</h4>
+      <ul>
+        <li>在「记录明细」选择类型（充电/加油/用车费用）、日期与金额后保存；充电和加油请同时填写容量（升/度）以计算单价。</li>
+        <li>在「里程与费用设置」按月填写行驶里程、按年填写保险等固定费用，才能得到每公里成本。</li>
+      </ul>
+      <h4>五、云端同步（可选）</h4>
+      <ul>
+        <li>在「设置」中绑定你的 GitHub 令牌，数据将存入你名下的私密 Gist，每辆车一个独立空间，任何设备联网即可读写。</li>
+      </ul>
     </div>
+    <div style="text-align:right;margin-top:12px"><button class="btn" id="btnHelpClose">关闭</button></div>
   </div>
 </div>
 <div class="toast" id="toast"></div>
@@ -324,6 +370,34 @@ function buildSeed(){
     nextId:recs.length+1, nextOt:RAW.oneTime.length+1};
 }
 function emptyData(){ return {records:[], mileage:{}, fixed:{}, oneTime:[], nextId:1, nextOt:1}; }
+/* 示例档案（浙A123456）的演示数据，供用户体验各项功能 */
+function buildDemo(){
+  const C={ /* 充电 [月,日,金额,度] */
+    2025:[[1,5,30,38],[1,15,28,35],[1,26,32,40],[2,3,25,31],[2,14,30,37],[2,25,27,34],[3,6,29,36],[3,16,31,39],[3,27,26,33],[4,4,30,38],[4,15,28,35],[4,26,33,41],[5,5,27,34],[5,16,30,37],[5,27,29,36],[6,6,31,39],[6,17,28,35],[6,28,30,37],[7,7,32,40],[7,18,29,36],[7,29,27,34],[8,8,30,38],[8,19,31,39],[8,30,28,35],[9,9,29,36],[9,20,30,37],[10,10,31,39],[10,21,28,35],[11,11,30,37],[11,22,29,36],[12,12,32,40],[12,23,30,37]],
+    2026:[[1,4,31,39],[1,15,29,36],[1,26,33,41],[2,5,30,38],[2,16,28,35],[2,27,32,40],[3,6,29,36],[3,17,31,39],[3,28,27,34],[4,7,30,37],[4,18,32,40],[4,29,28,35],[5,8,31,39],[5,19,29,36],[6,9,30,38],[6,20,28,35],[7,10,32,40],[7,21,30,37]]};
+  const F={ /* 加油 [月,日,金额,升] */
+    2025:[[3,12,200,26],[7,20,250,32],[11,8,180,24]],
+    2026:[[2,14,220,29],[6,25,200,26]]};
+  const E={ /* 用车费用 [月,日,金额,用途] */
+    2025:[[1,8,25,'停车费'],[2,18,30,'停车费'],[3,22,120,'杭州到上海高速'],[4,10,20,'停车费'],[5,15,95,'上海到苏州高速'],[6,20,28,'停车费'],[7,25,35,'停车费'],[8,12,110,'杭州到宁波高速'],[9,18,22,'停车费'],[10,23,30,'停车费'],[11,15,85,'补胎费'],[12,20,26,'停车费']],
+    2026:[[1,12,24,'停车费'],[2,20,32,'停车费'],[3,15,100,'杭州到黄山高速'],[4,22,25,'停车费'],[5,12,30,'停车费'],[6,18,28,'停车费'],[7,8,20,'停车费']]};
+  const MILE={ /* 每月行驶里程 */
+    '2025':{1:1200,2:980,3:1350,4:1100,5:1250,6:1400,7:1500,8:1300,9:1050,10:1150,11:900,12:1000},
+    '2026':{1:1100,2:1250,3:950,4:1300,5:1150,6:1000,7:850}};
+  const d=emptyData();
+  for(const y of [2025,2026]){
+    (C[y]||[]).forEach(a=>d.records.push({id:d.nextId++,type:'charge',y,m:a[0],d:a[1],amount:a[2],cap:a[3],purpose:''}));
+    (F[y]||[]).forEach(a=>d.records.push({id:d.nextId++,type:'fuel',y,m:a[0],d:a[1],amount:a[2],cap:a[3],purpose:''}));
+    (E[y]||[]).forEach(a=>d.records.push({id:d.nextId++,type:'expense',y,m:a[0],d:a[1],amount:a[2],cap:0,purpose:a[3]}));
+    for(let m=1;m<=12;m++){ if(MILE[y]&&MILE[y][m]) d.mileage[y+'-'+m]=MILE[y][m]; }
+  }
+  d.fixed={2025:{insurance:4800,pass:1200,other:0},2026:{insurance:4600,pass:1200,other:0}};
+  d.oneTime=[
+    {id:d.nextOt++,year:2025,cat:'车品',name:'脚垫',amount:299},
+    {id:d.nextOt++,year:2025,cat:'车品',name:'行车记录仪',amount:499},
+    {id:d.nextOt++,year:2026,cat:'车品',name:'车载吸尘器',amount:129}];
+  return d;
+}
 
 /* ═══════════════ 车辆档案注册表与状态 ═══════════════ */
 const DB_KEY='carExpenseDBv2';      // 多车辆档案库
@@ -331,8 +405,10 @@ const OLD_KEY='carExpenseDataV1';   // 旧版单车数据（迁移用）
 const GH_OLD='carExpenseGH';        // 旧版云端配置（迁移用）
 const TOKEN_KEY='carExpenseGHToken';// GitHub 令牌（本设备共用）
 const GH_FILE='car-expense-data.json';
-const SAMPLE_PLATE='浙AGA6939';
-let DB=null;          // {profiles:{plate:{plate,name,createdAt,gistId,data}}, lastPlate}
+const SAMPLE_PLATE='浙AGA6939';     // 普通用户车辆（真实样本数据）
+const DEMO_PLATE='浙A123456';       // 公开示例档案（无需密码，供所有用户体验）
+const ADMIN_PWD='006194';           // 管理员密码，可进入任意档案
+let DB=null;          // {profiles:{plate:{plate,name,createdAt,gistId,noPwd,data}}, lastPlate}
 let plate=null;       // 当前档案车牌
 let S=null;           // 当前档案数据
 let curYear=2026;
@@ -340,13 +416,19 @@ let editingId=null, editingOt=null;
 const charts={};
 let lastSavedAt=0, saveTimer=null, lastEtag='';
 const unlocked=new Set();   // 本次会话已解锁的车牌
-let lockTarget=null;        // 等待解锁的车牌
+let viewLocked=false;       // 当前档案是否处于加密未解锁状态（数字打码）
 
+function masked(){ return viewLocked; }          // 未解锁时数字以 * 显示
 function defaultPwd(pl){ return pl.replace(/[^0-9]/g,'').slice(-4); }
-function profPwd(prof){ return (prof.data&&prof.data.pwd)||defaultPwd(prof.plate); }
+function needsPwd(prof){ return !prof.noPwd; }  // 示例档案无需密码
+function profPwd(prof){ return needsPwd(prof) ? ((prof.data&&prof.data.pwd)||defaultPwd(prof.plate)) : null; }
+function checkPwd(prof,input){
+  if(!needsPwd(prof)) return true;              // 示例档案
+  return input===ADMIN_PWD || input===profPwd(prof);
+}
 
 function P(){ return DB.profiles[plate]; }
-function validPlate(s){ return /^[\u4e00-\u9fa5][A-Z][A-Z0-9]{5,6}$/.test(s); }
+function validPlate(s){ return /^[\u4e00-\u9fa5][A-Z0-9]{6,7}$/.test(s); }  // 7/8位，首字汉字，其余数字或字母
 function ghToken(){ try{return localStorage.getItem(TOKEN_KEY)||'';}catch(e){return '';} }
 function ghSaveToken(t){ try{ t?localStorage.setItem(TOKEN_KEY,t):localStorage.removeItem(TOKEN_KEY);}catch(e){} }
 function backend(){ return (ghToken()&&P()&&P().gistId)?'github':'local'; }
@@ -356,14 +438,23 @@ function fixIds(){
   if(!S.nextOt) S.nextOt=Math.max(0,...S.oneTime.map(o=>o.id))+1;
 }
 function loadDB(){
-  try{ const raw=localStorage.getItem(DB_KEY); if(raw){ const d=JSON.parse(raw); if(d&&d.profiles&&Object.keys(d.profiles).length) return d; } }catch(e){}
-  // 首次使用或迁移旧版数据：样本档案 浙AGA6939
-  let oldData=null, gistId='', token='';
-  try{ const raw=localStorage.getItem(OLD_KEY); if(raw){ const d=JSON.parse(raw); if(d&&Array.isArray(d.records)) oldData=d; } }catch(e){}
-  try{ const c=JSON.parse(localStorage.getItem(GH_OLD)||'{}'); if(c.token) token=c.token; if(c.gistId) gistId=c.gistId; }catch(e){}
-  if(token) ghSaveToken(token);
-  const prof={plate:SAMPLE_PLATE,name:'示例车辆',createdAt:Date.now(),gistId,data:oldData||buildSeed()};
-  return {profiles:{[SAMPLE_PLATE]:prof}, lastPlate:SAMPLE_PLATE};
+  let d=null;
+  try{ const raw=localStorage.getItem(DB_KEY); if(raw){ const p=JSON.parse(raw); if(p&&p.profiles&&Object.keys(p.profiles).length) d=p; } }catch(e){}
+  if(!d){
+    // 首次使用或迁移旧版数据：浙AGA6939 作为普通车辆档案
+    let oldData=null, gistId='', token='';
+    try{ const raw=localStorage.getItem(OLD_KEY); if(raw){ const dd=JSON.parse(raw); if(dd&&Array.isArray(dd.records)) oldData=dd; } }catch(e){}
+    try{ const c=JSON.parse(localStorage.getItem(GH_OLD)||'{}'); if(c.token) token=c.token; if(c.gistId) gistId=c.gistId; }catch(e){}
+    if(token) ghSaveToken(token);
+    d={profiles:{[SAMPLE_PLATE]:{plate:SAMPLE_PLATE,name:'',createdAt:Date.now(),gistId,data:oldData||buildSeed()}}, lastPlate:''};
+  }
+  // 迁移：取消 浙AGA6939 的“示例车辆”标签，作为普通档案
+  if(d.profiles[SAMPLE_PLATE]&&d.profiles[SAMPLE_PLATE].name==='示例车辆') d.profiles[SAMPLE_PLATE].name='';
+  // 确保公开示例档案 浙A123456 存在（无需密码）
+  if(!d.profiles[DEMO_PLATE]){
+    d.profiles[DEMO_PLATE]={plate:DEMO_PLATE,name:'示例档案',createdAt:Date.now(),gistId:'',noPwd:true,data:buildDemo()};
+  } else { d.profiles[DEMO_PLATE].noPwd=true; }
+  return d;
 }
 // 分享链接：?gist=数据ID&plate=车牌
 function handleShareParams(){
@@ -382,6 +473,7 @@ function handleShareParams(){
   if(DB.profiles[target].gistId!==g.trim()) DB.profiles[target].gistId=g.trim();
   DB.lastPlate=target; saveDB();
   try{ history.replaceState(null,'',location.pathname); }catch(e){}
+  return target;
 }
 
 /* ═══════════════ GitHub Gist 云同步（按车辆） ═══════════════ */
@@ -440,8 +532,9 @@ function save(toast){
   if(toast) show('已保存');
 }
 function show(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),1800); }
-const fmt=(n,d=2)=>(n==null||isNaN(n))?'—':Number(n).toLocaleString('zh-CN',{minimumFractionDigits:0,maximumFractionDigits:d});
-const money=n=>fmt(n,2);
+function requireUnlock(){ if(masked()){ show('档案已加密，请先在数据总览页输入密码解锁'); return false; } return true; }
+const fmt=(n,d=2)=>masked()?'*':((n==null||isNaN(n))?'—':Number(n).toLocaleString('zh-CN',{minimumFractionDigits:0,maximumFractionDigits:d}));
+const money=n=>masked()?'*':fmt(n,2);
 function years(){ const ys=new Set(S.records.map(r=>r.y)); S.oneTime.forEach(o=>ys.add(o.year)); Object.keys(S.fixed).forEach(y=>ys.add(+y)); if(!ys.size) ys.add(new Date().getFullYear()); return [...ys].sort(); }
 
 /* ═══════════════ 数据聚合 ═══════════════ */
@@ -472,7 +565,7 @@ function purposeCat(p){
 }
 
 /* ═══════════════ 图表 ═══════════════ */
-function mkChart(id,cfg){ if(charts[id]) charts[id].destroy(); const el=document.getElementById(id); if(!el||window.__noChart||typeof Chart==='undefined') return; charts[id]=new Chart(el,cfg); }
+function mkChart(id,cfg){ if(charts[id]) charts[id].destroy(); if(masked()) return; const el=document.getElementById(id); if(!el||window.__noChart||typeof Chart==='undefined') return; charts[id]=new Chart(el,cfg); }
 const MO=['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 const gridOpt={color:'#eef1f6'};
 const baseOpt=(yTitle)=>({responsive:true,maintainAspectRatio:false,
@@ -480,6 +573,7 @@ const baseOpt=(yTitle)=>({responsive:true,maintainAspectRatio:false,
   scales:{x:{grid:{display:false}},y:{grid:gridOpt,title:yTitle?{display:true,text:yTitle,font:{size:11}}:{display:false},ticks:{font:{size:11}}}}});
 
 function renderOverview(){
+  document.getElementById('unlockBar').style.display=masked()?'':'none';
   const y=curYear, agg=monthAgg(y), t=yearAgg(y);
   const fx=S.fixed[y]||{insurance:0,pass:0,other:0};
   const kpis=[
@@ -550,6 +644,7 @@ function monthSeries(y){
 }
 function pct(c,p){ if(c==null||p==null||!p) return null; return (c-p)/Math.abs(p)*100; }
 function pctHtml(p,neutral){
+  if(masked()) return '<span style="color:#b6bccb">*</span>';
   if(p==null||isNaN(p)) return '<span style="color:#b6bccb">—</span>';
   const s=(p>0?'+':'')+p.toFixed(1)+'%';
   const col=neutral?'#64748b':(p>0.05?'#ef4444':(p<-0.05?'#10b981':'#64748b'));
@@ -600,6 +695,7 @@ function renderTrend(){
 
 /* ═══════════════ 记录管理 ═══════════════ */
 function renderRecords(){
+  document.getElementById('recFormPanel').style.display=masked()?'none':'';
   const fy=document.getElementById('fltYear').value, ft=document.getElementById('fltType').value, kw=document.getElementById('fltKw').value.trim();
   let rs=S.records.filter(r=>(!fy||r.y===+fy)&&(!ft||r.type===ft)&&(!kw||(r.purpose||'').includes(kw)));
   rs.sort((a,b)=>(b.y*10000+b.m*100+b.d)-(a.y*10000+a.m*100+a.d));
@@ -610,9 +706,10 @@ function renderRecords(){
     h+=`<tr><td class="l">${ds}</td><td class="l"><span class="tag ${r.type}">${tn[r.type]}</span></td><td>${money(r.amount)}</td><td>${r.type==='expense'?'—':fmt(r.cap,2)+(r.type==='charge'?' kWh':' L')}</td><td class="l">${r.purpose||''}</td><td style="text-align:right"><button class="edt" onclick="editRec(${r.id})">编辑</button><button class="del" onclick="delRec(${r.id})">删除</button></td></tr>`;});
   document.getElementById('recTable').innerHTML=h+'</tbody>';
   const sum=rs.reduce((s,r)=>s+r.amount,0);
-  document.getElementById('recCount').textContent=`共 ${rs.length} 条 · 合计 ${money(sum)} 元`;
+  document.getElementById('recCount').textContent=masked()?`共 * 条 · 合计 * 元`:`共 ${rs.length} 条 · 合计 ${money(sum)} 元`;
 }
 window.editRec=function(id){
+  if(!requireUnlock())return;
   const r=S.records.find(x=>x.id===id); if(!r)return;
   editingId=id;
   document.getElementById('fType').value=r.type; syncFormFields();
@@ -622,7 +719,7 @@ window.editRec=function(id){
   document.getElementById('btnCancel').style.display=''; document.getElementById('btnSave').textContent='更新';
   document.querySelector('[data-tab="records"]').click(); window.scrollTo({top:0,behavior:'smooth'});
 };
-window.delRec=function(id){ if(!confirm('确定删除这条记录？'))return; S.records=S.records.filter(r=>r.id!==id); if(editingId===id)cancelEdit(); save(); refresh(); show('已删除'); };
+window.delRec=function(id){ if(!requireUnlock())return; if(!confirm('确定删除这条记录？'))return; S.records=S.records.filter(r=>r.id!==id); if(editingId===id)cancelEdit(); save(); refresh(); show('已删除'); };
 function cancelEdit(){ editingId=null; document.getElementById('formTitle').textContent='添加记录'; document.getElementById('btnCancel').style.display='none'; document.getElementById('btnSave').textContent='保存';
   ['fAmount','fCap','fPurpose'].forEach(i=>document.getElementById(i).value=''); }
 function syncFormFields(){
@@ -652,16 +749,21 @@ function renderGhPanel(){
 function renderSettings(){
   renderGhPanel();
   const ps=document.getElementById('pwdStatus');
-  ps.textContent=S.pwd?'已设置自定义密码':'当前为默认密码（车牌后四位数字）';
-  ps.style.color=S.pwd?'#10b981':'var(--sub)';
+  const pwdPanel=document.getElementById('pwdPanel');
+  if(!needsPwd(P())){ ps.textContent='示例档案 · 无需密码'; ps.style.color='#10b981'; pwdPanel.style.opacity='.55'; }
+  else { pwdPanel.style.opacity='';
+    ps.textContent=S.pwd?'已设置自定义密码':'当前为默认密码（车牌后四位数字）';
+    ps.style.color=S.pwd?'#10b981':'var(--sub)'; }
+  document.getElementById('dangerPanel').style.display=(needsPwd(P())&&!masked())?'':'none';
   const y=curYear;
   document.getElementById('mileTitle').textContent=`${plate} · ${y} 年每月行驶里程（公里）`;
   document.getElementById('mileGrid').innerHTML=MO.map((n,i)=>
-    `<div class="fld"><label>${n}</label><input type="number" step="0.1" min="0" id="mile_${i+1}" value="${S.mileage[y+'-'+(i+1)]||''}"></div>`).join('');
+    `<div class="fld"><label>${n}</label><input type="number" step="0.1" min="0" id="mile_${i+1}" value="${masked()?'':(S.mileage[y+'-'+(i+1)]||'')}"${masked()?' disabled':''}></div>`).join('');
   const fx=S.fixed[y]||{insurance:0,pass:0,other:0};
-  document.getElementById('fxInsurance').value=fx.insurance||'';
-  document.getElementById('fxPass').value=fx.pass||'';
-  document.getElementById('fxOther').value=fx.other||'';
+  document.getElementById('fxInsurance').value=masked()?'':(fx.insurance||'');
+  document.getElementById('fxPass').value=masked()?'':(fx.pass||'');
+  document.getElementById('fxOther').value=masked()?'':(fx.other||'');
+  ['fxInsurance','fxPass','fxOther'].forEach(i=>document.getElementById(i).disabled=masked());
   document.getElementById('otYear').value=y;
   renderOtTable();
 }
@@ -671,7 +773,7 @@ function renderOtTable(){
   os.forEach(o=>{ h+=`<tr><td class="l">${o.year}</td><td class="l">${o.cat}</td><td class="l">${o.name}</td><td>${money(o.amount)}</td><td style="text-align:right"><button class="del" onclick="delOt(${o.id})">删除</button></td></tr>`;});
   document.getElementById('otTable').innerHTML=h+'</tbody>';
 }
-window.delOt=function(id){ if(!confirm('确定删除？'))return; S.oneTime=S.oneTime.filter(o=>o.id!==id); save(); renderOtTable(); };
+window.delOt=function(id){ if(!requireUnlock())return; if(!confirm('确定删除？'))return; S.oneTime=S.oneTime.filter(o=>o.id!==id); save(); renderOtTable(); };
 
 /* ═══════════════ 车辆档案库 ═══════════════ */
 function profStats(prof){
@@ -680,49 +782,42 @@ function profStats(prof){
   const ys=[...new Set(d.records.map(r=>r.y))].sort();
   return {n,sum,span:ys.length?`${ys[0]}–${ys[ys.length-1]}`:'暂无记录'};
 }
-function renderGarage(){
-  const list=Object.values(DB.profiles).sort((a,b)=>a.createdAt-b.createdAt);
-  document.getElementById('garageCards').innerHTML=list.map(prof=>{
-    const st=profStats(prof);
-    const cloud=prof.gistId?'☁ 已连云端':'💾 本地存储';
-    return `<div class="carcard">
-      <span class="syncb" style="color:${prof.gistId?'var(--green)':'var(--sub)'}">${cloud}</span>
-      <div class="plate">${prof.plate}</div>
-      <div class="meta">${prof.name?prof.name+'<br>':''}${st.span} · ${st.n} 条记录 · 支出 ${money(st.sum)} 元</div>
-      <div class="ops"><button class="btn mini" onclick="enterCar('${prof.plate}')">进入档案</button>
-      <button class="btn mini red" onclick="delCar('${prof.plate}')">删除</button></div>
-    </div>`;}).join('');
+/* 主页面：示例档案卡片 + 搜索框（不列出真实车辆，保护隐私） */
+function renderMain(){
+  const el=document.getElementById('searchResult'); if(el) el.innerHTML='';
+  const sp=document.getElementById('searchPlate'); if(sp) sp.value='';
+  const demo=DB.profiles[DEMO_PLATE];
+  const st=demo?profStats(demo):{n:0,sum:0,span:'暂无记录'};
+  document.getElementById('demoCard').innerHTML=`
+    <div class="dplate">${DEMO_PLATE}<span class="dtag">示例</span></div>
+    <div class="dmeta">用于演示的虚拟车辆，内置 ${st.n} 条记录（${st.span}），包含充电、加油、用车费用、里程与固定费用。<br>无需密码，可随意体验记账、统计、环比/同比等全部功能。</div>
+    <button class="btn" onclick="enterCar('${DEMO_PLATE}')">进入示例档案</button>`;
 }
-window.enterCar=function(p){
-  const prof=DB.profiles[p]; if(!prof) return;
-  if(unlocked.has(p)){ openProfile(p); return; }
-  lockTarget=p;
-  document.getElementById('lockPlate').textContent=p+(prof.name?' · '+prof.name:'');
-  document.getElementById('lockPwd').value='';
-  document.getElementById('lockMask').style.display='flex';
-  setTimeout(()=>document.getElementById('lockPwd').focus(),50);
-};
-function hideLock(){ document.getElementById('lockMask').style.display='none'; lockTarget=null; }
-function tryUnlock(){
-  const prof=DB.profiles[lockTarget]; if(!prof){ hideLock(); return; }
-  const v=document.getElementById('lockPwd').value.trim();
-  if(v===profPwd(prof)){ unlocked.add(lockTarget); const p=lockTarget; hideLock(); openProfile(p); }
-  else { show('密码错误，请重试'); const el=document.getElementById('lockPwd'); el.value=''; el.focus(); }
+window.enterCar=function(p){ openProfile(p); };
+/* 档案内解锁：默认密码/自定义密码/管理员密码 */
+function doUnlock(){
+  const v=(document.getElementById('unlockPwd').value||'').trim();
+  if(!v){ show('请输入密码'); return; }
+  if(checkPwd(P(),v)){ unlocked.add(plate); viewLocked=false;
+    document.getElementById('unlockPwd').value=''; refresh(); show('已解锁'); }
+  else { show('密码错误，请重试'); document.getElementById('unlockPwd').value=''; document.getElementById('unlockPwd').focus(); }
 }
 window.delCar=function(p){
   const prof=DB.profiles[p]; if(!prof) return;
+  if(p===DEMO_PLATE){ show('示例档案不可删除'); return; }
+  if(masked()){ show('请先解锁档案'); return; }
   if(!confirm(`确定删除车辆档案 ${p}？\n本地记录将被清除${prof.gistId?'（GitHub 上的云端数据不会自动删除）':''}。`)) return;
   delete DB.profiles[p]; unlocked.delete(p);
-  if(DB.lastPlate===p) DB.lastPlate=Object.keys(DB.profiles)[0]||'';
-  saveDB(); renderGarage(); show('已删除档案');
+  if(DB.lastPlate===p) DB.lastPlate='';
+  saveDB(); showGarage(); show('已删除档案');
 };
 function showGarage(){
   document.getElementById('appView').style.display='none';
   document.getElementById('garageView').style.display='';
   document.getElementById('hdrRight').style.display='none';
-  document.getElementById('plateBadge').textContent='我的车辆档案';
+  document.getElementById('plateBadge').textContent='用车费用记账与分析';
   document.title='用车费用记账与分析';
-  renderGarage();
+  renderMain();
 }
 function showApp(){
   document.getElementById('garageView').style.display='none';
@@ -734,6 +829,7 @@ async function openProfile(p){
   S=P().data; fixIds();
   lastEtag=''; lastSavedAt=(S.meta&&S.meta.savedAt)||0;
   editingId=null; editingOt=null;
+  viewLocked=needsPwd(P())&&!unlocked.has(p);   // 未解锁则数字打码
   showApp();
   document.title=plate+' · 用车费用记账与分析';
   document.getElementById('plateBadge').textContent='当前车辆：'+plate+(P().name?' · '+P().name:'');
@@ -753,10 +849,12 @@ async function openProfile(p){
 
 /* ═══════════════ 导入导出 ═══════════════ */
 function exportJson(){
+  if(!requireUnlock())return;
   const blob=new Blob([JSON.stringify(S,null,1)],{type:'application/json'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`用车费用-${plate}.json`; a.click(); URL.revokeObjectURL(a.href);
 }
 function exportCsv(){
+  if(!requireUnlock())return;
   let s='\ufeff日期,类型,金额,容量,用途\n';
   const tn={charge:'充电',fuel:'加油',expense:'用车费用'};
   [...S.records].sort((a,b)=>(a.y*10000+a.m*100+a.d)-(b.y*10000+b.m*100+b.d)).forEach(r=>{
@@ -775,7 +873,7 @@ function initYears(){
 }
 async function init(){
   DB=loadDB();
-  handleShareParams();
+  const shareTarget=handleShareParams();
   const now=new Date();
   document.getElementById('fDate').value=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
   document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
@@ -784,25 +882,43 @@ async function init(){
     b.classList.add('active'); document.getElementById('tab-'+b.dataset.tab).classList.add('active');
   });
   document.getElementById('btnSwitchCar').onclick=showGarage;
-  document.getElementById('btnCreateCar').onclick=()=>{
-    const pl=(document.getElementById('newPlate').value||'').trim().toUpperCase();
-    const name=document.getElementById('newCarName').value.trim();
-    if(!validPlate(pl)){show('车牌格式不正确（示例：浙AGA6939，新能源 8 位）');return;}
-    if(DB.profiles[pl]){show('该车牌档案已存在，直接进入');unlocked.add(pl);openProfile(pl);return;}
-    DB.profiles[pl]={plate:pl,name,createdAt:Date.now(),gistId:'',data:emptyData()};
-    saveDB(); unlocked.add(pl); openProfile(pl); show('档案已创建，开始记录吧');
+  // ── 主页面：搜索进入 / 使用说明书 ──
+  const searchCar=()=>{
+    const pl=(document.getElementById('searchPlate').value||'').trim().toUpperCase();
+    const res=document.getElementById('searchResult');
+    if(!pl){ show('请输入车牌号'); return; }
+    if(!validPlate(pl)){ res.innerHTML='<div style="color:var(--red)">车牌格式不正确：应为 7 或 8 位，首位为汉字，其余为数字或字母（如 浙AGA6939、浙AD12345）。</div>'; return; }
+    if(DB.profiles[pl]){ openProfile(pl); return; }
+    res.innerHTML=`<div style="font-size:13px">未找到车牌 <b>${pl}</b> 的档案，可以为它创建新档案：</div>
+      <div class="form-row" style="margin-top:8px">
+        <div class="fld"><label>车型 / 备注（可选）</label><input type="text" id="createName" placeholder="如：问界M7" style="width:180px"></div>
+        <button class="btn" onclick="createCar('${pl}')">创建新档案</button>
+      </div>`;
   };
-  // ── 档案密码 ──
-  document.getElementById('btnUnlock').onclick=tryUnlock;
-  document.getElementById('btnLockCancel').onclick=hideLock;
-  document.getElementById('lockPwd').onkeydown=e=>{ if(e.key==='Enter') tryUnlock(); };
+  window.createCar=function(pl){
+    const name=(document.getElementById('createName').value||'').trim();
+    DB.profiles[pl]={plate:pl,name,createdAt:Date.now(),gistId:'',data:emptyData()};
+    saveDB(); unlocked.add(pl); openProfile(pl); show('档案已创建，默认密码为车牌后四位数字');
+  };
+  document.getElementById('btnSearchCar').onclick=searchCar;
+  document.getElementById('searchPlate').onkeydown=e=>{ if(e.key==='Enter') searchCar(); };
+  document.getElementById('btnHelp').onclick=()=>{ document.getElementById('helpMask').style.display='flex'; };
+  document.getElementById('btnHelpClose').onclick=()=>{ document.getElementById('helpMask').style.display='none'; };
+  // ── 档案内解锁 ──
+  document.getElementById('btnDoUnlock').onclick=doUnlock;
+  document.getElementById('unlockPwd').onkeydown=e=>{ if(e.key==='Enter') doUnlock(); };
+  document.getElementById('btnDelCar').onclick=()=>delCar(plate);
   document.getElementById('btnSavePwd').onclick=()=>{
+    if(!needsPwd(P())){show('示例档案无需设置密码');return;}
+    if(masked()){show('请先解锁档案');return;}
     const v=document.getElementById('newPwd').value.trim();
     if(!/^\d+$/.test(v)){show('密码必须是纯数字（位数不限）');return;}
     S.pwd=v; unlocked.delete(plate); save(); document.getElementById('newPwd').value='';
     renderSettings(); show('密码已更新，下次进入需使用新密码');
   };
   document.getElementById('btnResetPwd').onclick=()=>{
+    if(!needsPwd(P())){show('示例档案无需设置密码');return;}
+    if(masked()){show('请先解锁档案');return;}
     if(!confirm('恢复默认密码（车牌后四位数字）？'))return;
     delete S.pwd; unlocked.delete(plate); save(); renderSettings(); show('已恢复默认密码');
   };
@@ -810,6 +926,7 @@ async function init(){
   document.getElementById('momMetric').onchange=renderTrend;
   document.getElementById('fType').onchange=syncFormFields;
   document.getElementById('btnSave').onclick=()=>{
+    if(!requireUnlock())return;
     const type=document.getElementById('fType').value, dv=document.getElementById('fDate').value;
     const amount=parseFloat(document.getElementById('fAmount').value);
     if(!dv||isNaN(amount)||amount<0){show('请填写完整的日期和金额');return;}
@@ -827,17 +944,20 @@ async function init(){
   ['fltYear','fltType'].forEach(i=>document.getElementById(i).onchange=renderRecords);
   document.getElementById('fltKw').oninput=renderRecords;
   document.getElementById('btnSaveMile').onclick=()=>{
+    if(!requireUnlock())return;
     for(let m=1;m<=12;m++){const v=parseFloat(document.getElementById('mile_'+m).value);
       if(v>0)S.mileage[curYear+'-'+m]=v; else delete S.mileage[curYear+'-'+m];}
     save(); refresh(); show('里程已保存');
   };
   document.getElementById('btnSaveFixed').onclick=()=>{
+    if(!requireUnlock())return;
     S.fixed[curYear]={insurance:parseFloat(document.getElementById('fxInsurance').value)||0,
       pass:parseFloat(document.getElementById('fxPass').value)||0,
       other:parseFloat(document.getElementById('fxOther').value)||0};
     save(); refresh(); show('固定费用已保存');
   };
   document.getElementById('btnAddOt').onclick=()=>{
+    if(!requireUnlock())return;
     const year=parseInt(document.getElementById('otYear').value), cat=document.getElementById('otCat').value.trim()||'其他';
     const name=document.getElementById('otName').value.trim(), amount=parseFloat(document.getElementById('otAmount').value);
     if(!year||!name||isNaN(amount)){show('请完整填写年份/项目/金额');return;}
@@ -848,6 +968,7 @@ async function init(){
   document.getElementById('btnExport').onclick=exportJson;
   document.getElementById('btnCsv').onclick=exportCsv;
   document.getElementById('fileImport').onchange=e=>{
+    if(!requireUnlock()){e.target.value='';return;}
     const f=e.target.files[0]; if(!f)return;
     if(!confirm('导入将覆盖当前车辆（'+plate+'）的全部数据，继续？')){e.target.value='';return;}
     const rd=new FileReader();
@@ -859,12 +980,14 @@ async function init(){
     rd.readAsText(f); e.target.value='';
   };
   document.getElementById('btnReset').onclick=()=>{
-    if(!confirm(`确定把 ${plate} 的数据重置为${plate===SAMPLE_PLATE?'初始示例数据':'空档案'}？已连云端的数据也会被覆盖。`))return;
+    if(!requireUnlock())return;
+    if(!confirm(`确定把 ${plate} 的数据重置为${plate===SAMPLE_PLATE?'初始数据':'空档案'}？已连云端的数据也会被覆盖。`))return;
     S=(plate===SAMPLE_PLATE)?buildSeed():emptyData(); P().data=S; fixIds();
     save(); initYears(); refresh(); show('已重置');
   };
   // ── GitHub 云端同步（按车辆） ──
   document.getElementById('btnGhConnect').onclick=async()=>{
+    if(!requireUnlock())return;
     const token=document.getElementById('ghToken').value.trim();
     const gistId=document.getElementById('ghGistId').value.trim();
     const prof=P(); const tk=token||ghToken();
@@ -917,9 +1040,8 @@ async function init(){
       initYears(); refresh(); setSync('synced');
     }
   },10000);
-  // 进入上次的档案（本机自动登录）；若无档案则停在档案库页面
-  const target=DB.lastPlate&&DB.profiles[DB.lastPlate]?DB.lastPlate:null;
-  if(target){ unlocked.add(target); await openProfile(target); } else showGarage();
+  // 默认停在主页面（搜索进入/示例档案）；若带分享链接则直接进入对应档案
+  if(shareTarget&&DB.profiles[shareTarget]) await openProfile(shareTarget); else showGarage();
 }
 init();
 </script>
