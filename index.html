@@ -1191,7 +1191,7 @@ function downloadTpl(){   // 生成并下载 Excel 账单模板（含填写说�
 let anaPeriod='history';
 const ANA_NAME={history:'历史分析',year:'年度分析',quarter:'季度分析',month:'月度分析',week:'周分析'};
 function profileInsights(R,mileage){
-  R=R||S.records; mileage=mileage||S.mileage;
+  R=R||S.records; if(mileage==null) mileage=S.mileage;
   const n=R.length;
   const cs=R.filter(r=>r.type==='charge'), fs=R.filter(r=>r.type==='fuel'), es=R.filter(r=>r.type==='expense');
   const sum=a=>a.reduce((s,r)=>s+r.amount,0);
