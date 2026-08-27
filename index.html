@@ -244,6 +244,11 @@
   <section id="tab-records" class="tab">
     <div class="panel" id="recFormPanel">
       <h3 id="formTitle">添加记录</h3>
+      <div style="display:flex; gap:8px; align-items:flex-start">
+        <textarea id="smartText" rows="2" maxlength="200" placeholder="✨ 智能识别：输入一句话自动填入表单，如「昨天快充45.6度花了38元」「8月3日加油92号200元」「今天停车费15块」" style="flex:1; min-height:40px; resize:vertical; font-family:inherit; font-size:13px; border:1px solid var(--line); border-radius:6px; padding:6px 10px"></textarea>
+        <button class="btn" id="btnSmart" style="white-space:nowrap">✨ 智能识别</button>
+      </div>
+      <div id="smartHint" class="note" style="margin:4px 0 10px; min-height:15px; display:block"></div>
       <div class="form-row">
         <div class="fld"><label>类型</label>
           <select id="fType">
@@ -468,6 +473,7 @@
       <h4>四、如何记账</h4>
       <ul>
         <li>在「记录明细」选择类型（充电/加油/用车费用）、日期与金额后保存；充电和加油请同时填写容量（升/度）以计算单价。</li>
+        <li>也可使用「智能识别」：直接输入一句话（如「昨天快充45.6度花了38元」），自动识别类型、日期、金额与容量并填入表单，核对后保存即可。</li>
         <li>在「里程与费用」按月填写行驶里程、按年填写固定费用（保险为固定项，其余项目可自由增删与修改），才能得到每公里成本。</li>
       </ul>
       <h4>五、云端同步（自动）</h4>
@@ -992,6 +998,80 @@ function syncFormFields(){
   document.getElementById('fldCap').style.display=t==='expense'?'none':'';
   document.getElementById('fldPurpose').style.display=t==='expense'?'':'none';
   document.getElementById('capLabel').textContent=t==='fuel'?'加油量（L）':'充电量（kWh）';
+}
+/* 智能识别：从一句话中解析 类型/日期/金额/容量/用途，自动填入表单 */
+function smartParse(raw){
+  const text=(raw||'').trim();
+  const hint=document.getElementById('smartHint');
+  if(!text){ hint.textContent='请先输入要识别的内容'; hint.style.color='var(--red)'; return; }
+  const pad=n=>String(n).padStart(2,'0');
+  const now=new Date(); const nowY=now.getFullYear(), nowM=now.getMonth()+1, nowD=now.getDate();
+  const dateFromOffset=off=>{ const t=new Date(); t.setDate(t.getDate()-off); return {y:t.getFullYear(),m:t.getMonth()+1,d:t.getDate()}; };
+  let type=null, cap=null, amount=null, date=null, purpose='';
+  // ── 1. 类型 ──
+  if(/家充|家用桩/.test(text)) type='charge';
+  else if(/充电|快充|慢充|超充|电桩|电网|特来电|星星/.test(text)) type='charge';
+  else if(/加油|汽油|柴油|9[258][号#＃]|中石化|中石油|油站/.test(text)) type='fuel';
+  // ── 2. 容量（度 / 升） ──
+  let capM=text.match(/(\d+(?:\.\d+)?)\s*度/); if(capM) cap=parseFloat(capM[1]);
+  if(cap==null){ capM=text.match(/(\d+(?:\.\d+)?)\s*(?:升|L)/i); if(capM) cap=parseFloat(capM[1]); }
+  // ── 3. 日期（先于金额解析，便于金额候选排除日期片段） ──
+  const full=text.match(/(\d{4})\s*[年\/\-.]\s*(\d{1,2})\s*[月\/\-.]\s*(\d{1,2})/);
+  if(full){ date={y:+full[1],m:+full[2],d:+full[3]}; }
+  else{
+    const md=text.match(/(?<!\d)(\d{1,2})\s*月\s*(\d{1,2})\s*[日号]?/);
+    if(md && +md[1]<=12 && +md[2]<=31) date={y:nowY,m:+md[1],d:+md[2]};
+    else{
+      const md2=text.match(/(?<![\d.])(\d{1,2})[\/\-.](\d{1,2})(?![\d.])/);
+      if(md2 && +md2[1]>=1 && +md2[1]<=12 && +md2[2]>=1 && +md2[2]<=31) date={y:nowY,m:+md2[1],d:+md2[2]};
+    }
+    if(!date){
+      if(/大前天/.test(text)) date=dateFromOffset(3);
+      else if(/前天/.test(text)) date=dateFromOffset(2);
+      else if(/昨天/.test(text)) date=dateFromOffset(1);
+      else date={y:nowY,m:nowM,d:nowD};
+    }
+  }
+  // ── 4. 金额 ──
+  const cands=[];
+  const reYuan=/(\d+(?:\.\d+)?)\s*[元块]/g; let m;
+  while((m=reYuan.exec(text))){ if(!/[\/每]|一度/.test(text.slice(m.index+m[0].length,m.index+m[0].length+2))) cands.push(parseFloat(m[1])); }
+  const m2=text.match(/(?:花了|花费|共|总计|支付|付款|消费|收费|用了)\s*(\d+(?:\.\d+)?)/);
+  if(m2) cands.push(parseFloat(m2[1]));
+  if(!cands.length){
+    const reAll=/\d+(?:\.\d+)?/g;
+    while((m=reAll.exec(text))){
+      const s=m[0], v=parseFloat(s), after=text[m.index+s.length];
+      if(/[月日年号点]/.test(after)||/[度升]/.test(after)) continue;         // 日期或容量数字不视为金额
+      if(m.index>0 && text[m.index-1]==='.') continue;                        // 小数的一部分不视为金额
+      cands.push(v);
+    }
+  }
+  if(cands.length) amount=Math.max(...cands);
+  // ── 5. 用途（用车费用时按关键词归类） ──
+  if(!type){
+    type='expense';
+    const cats=[['保险','保险'],['保养','保养'],['停车','停车费'],['洗车','洗车'],['维修','维修'],['高速','高速通行费'],['过路','高速通行费'],['通行','高速通行费'],['年检','年检'],['违章','违章'],['充电服务费','充电服务费']];
+    const hit=cats.find(c=>text.includes(c[0]));
+    purpose=hit?hit[1]:(text.replace(/\s+/g,' ').slice(0,20)||'其他');
+  }
+  // ── 6. 结果校验与填入 ──
+  if(amount==null){ hint.textContent='未能识别出金额，请在文字中包含金额（如「…花了38元」或「…200元」）'; hint.style.color='var(--red)'; return; }
+  if(date.m<1||date.m>12||date.d<1||date.d>31){ hint.textContent='识别到的日期不合法，请检查'; hint.style.color='var(--red)'; return; }
+  document.getElementById('fType').value=type; syncFormFields();
+  document.getElementById('fDate').value=`${date.y}-${pad(date.m)}-${pad(date.d)}`;
+  document.getElementById('fAmount').value=amount;
+  document.getElementById('fCap').value=(type!=='expense'&&cap!=null)?cap:'';
+  document.getElementById('fPurpose').value=type==='expense'?purpose:'';
+  if(editingId) cancelEdit();   // 识别结果作为新记录，退出编辑态
+  const tname={charge:'充电',fuel:'加油',expense:'用车费用'}[type];
+  const dv=`${date.y}-${pad(date.m)}-${pad(date.d)}`;
+  let msg=`已识别：${tname} · ${dv} · ${amount} 元`;
+  if(type==='charge'&&cap!=null) msg+=` · ${cap} 度`;
+  if(type==='fuel'&&cap!=null) msg+=` · ${cap} 升`;
+  if(type==='expense') msg+=` · 用途「${purpose}」`;
+  hint.textContent=msg+'（已自动填入上方表单，请核对后点「保存」）';
+  hint.style.color='var(--green)';
 }
 
 /* ═══════════════ 里程与费用 / 设置 ═══════════════ */
@@ -1697,6 +1777,8 @@ async function init(){
   document.getElementById('yearSel').onchange=e=>{curYear=+e.target.value; refresh();};
   document.getElementById('momMetric').onchange=renderTrend;
   document.getElementById('fType').onchange=syncFormFields;
+  document.getElementById('btnSmart').onclick=()=>smartParse(document.getElementById('smartText').value);
+  document.getElementById('smartText').addEventListener('keydown',e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); smartParse(e.target.value); } });
   document.getElementById('btnSave').onclick=()=>{
     if(!requireUnlock())return;
     const type=document.getElementById('fType').value, dv=document.getElementById('fDate').value;
