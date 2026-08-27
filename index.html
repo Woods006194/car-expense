@@ -1196,7 +1196,7 @@ function profileInsights(R,mileage){
   const cs=R.filter(r=>r.type==='charge'), fs=R.filter(r=>r.type==='fuel'), es=R.filter(r=>r.type==='expense');
   const sum=a=>a.reduce((s,r)=>s+r.amount,0);
   const cAmt=sum(cs), fAmt=sum(fs), eAmt=sum(es), energy=cAmt+fAmt;
-  const miles=Object.values(S.mileage), totMile=miles.reduce((s,v)=>s+(+v||0),0);
+  const miles=Object.values(mileage), totMile=miles.reduce((s,v)=>s+(+v||0),0);
   const homeN=cs.filter(r=>r.purpose==='家充桩').length;
   const avgMile=miles.length?totMile/miles.length:0;
   const perKm=totMile>0?energy/totMile:null;
