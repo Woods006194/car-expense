@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>用车费用记账与分析</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" crossorigin="anonymous" integrity="sha384-9nhczxUqK87bcKHh20fSQcTGD4qq5GhayNYSYWqwBkINBhOfQLg/P5HG5lF1urn4" onerror="window.__noChart=true"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" onerror="window.__noXlsx=true"></script>
 <style>
   :root{
     --bg:#f4f6fa; --card:#fff; --line:#e5e9f0; --txt:#22293a; --sub:#7a8299;
@@ -106,6 +107,12 @@
   .adminrow .ainfo{flex:1; min-width:220px; font-size:13.5px;}
   .adminrow .ainfo .note{display:block; margin-top:2px;}
   .adminrow .aops{display:flex; gap:6px; flex-wrap:wrap;}
+  /* Excel 导入预览模态框 */
+  #impMask{position:fixed; inset:0; background:rgba(15,23,42,.45); display:flex; align-items:center; justify-content:center; z-index:70;}
+  .impbox{background:#fff; border-radius:12px; padding:20px 24px; width:min(860px,94vw); max-height:84vh; overflow:auto; box-shadow:0 10px 40px rgba(15,23,42,.25);}
+  .improw-ok td{color:#047857;} .improw-bad td{color:#ef4444;}
+  /* 画像标签 */
+  .tagline{display:inline-block; background:#eef4ff; color:#1d4ed8; border:1px solid #c7dbff; border-radius:20px; font-size:12px; padding:2px 12px; margin:0 8px 8px 0;}
 </style>
 </head>
 <body>
@@ -180,6 +187,7 @@
   <button data-tab="records">记录管理</button>
   <button data-tab="trend">环比/同比对比</button>
   <button data-tab="compare">年度对比</button>
+  <button data-tab="analysis">数据分析与画像</button>
   <button data-tab="settings">里程与费用设置</button>
 </nav>
 <main>
@@ -224,6 +232,14 @@
         <div class="fld" id="fldPurpose" style="display:none"><label>用途（如：停车费、出机场、杭州到庆元高速）</label><input type="text" id="fPurpose" style="width:260px"></div>
         <button class="btn" id="btnSave">保存</button>
         <button class="btn gray" id="btnCancel" style="display:none">取消编辑</button>
+      </div>
+    </div>
+    <div class="panel" id="impPanel">
+      <h3>📊 Excel 账单导入 <span class="note">智能识别表头与日期格式，导入前可预览确认</span></h3>
+      <div class="form-row">
+        <button class="btn gray" id="btnTpl">⬇ 下载账单模板（.xlsx）</button>
+        <label class="btn">导入账单 Excel<input type="file" id="xlsxFile" accept=".xlsx,.xls,.csv" hidden></label>
+        <span class="note" style="padding-bottom:6px">支持 .xlsx / .xls / .csv；识别类型、日期、金额、容量、用途列，追加导入不会覆盖已有记录</span>
       </div>
     </div>
     <div class="panel">
@@ -281,11 +297,31 @@
     </div>
   </section>
 
+  <!-- ═══ 数据分析与画像 ═══ -->
+  <section id="tab-analysis" class="tab">
+    <div class="panel" id="anaMask" style="display:none">
+      <h3>🔒 该档案已加密</h3>
+      <div style="font-size:12.5px;color:var(--sub)">请先在数据总览页输入密码解锁后，再查看历史数据分析与车辆画像。</div>
+    </div>
+    <div id="anaBody">
+      <div class="cards" id="anaKpis"></div>
+      <div class="panel"><h3>车辆画像 · 综合研判 <span class="note">基于全部历史数据自动生成，仅供参考</span></h3><div id="profileTags" style="margin-bottom:8px"></div><div id="profileText" style="font-size:13.5px;color:var(--txt);line-height:2"></div></div>
+      <div class="grid2">
+        <div class="panel"><h3>各月油电支出总趋势 <span class="note">全部年份</span></h3><div class="chart-box"><canvas id="chAnaTrend"></canvas></div></div>
+        <div class="panel"><h3>用车费用用途构成 <span class="note">全部年份</span></h3><div class="chart-box"><canvas id="chAnaCat"></canvas></div></div>
+      </div>
+      <div class="panel">
+        <h3>分年汇总</h3>
+        <div class="scroll"><table id="anaYearTable"></table></div>
+      </div>
+    </div>
+  </section>
+
   <!-- ═══ 设置 ═══ -->
   <section id="tab-settings" class="tab">
     <div class="panel" id="pwdPanel">
       <h3>档案密码 <span class="note" id="pwdStatus"></span></h3>
-      <div style="font-size:12.5px;color:var(--sub);margin-bottom:10px">进入本档案时需输入密码，默认密码为车牌后四位（数字或字母）。档案数据与密码实时同步到云端，任何设备均可查看最新数据。</div>
+      <div style="font-size:12.5px;color:var(--sub);margin-bottom:10px">进入本档案时需输入密码，默认密码为车牌后四位（数字或字母）。档案密码与数据一同实时同步到云端，任何设备看到的密码设置都一致。</div>
       <div class="form-row">
         <div class="fld"><label>新密码（数字或字母，6 位以内）</label><input type="password" id="newPwd" maxlength="6" style="width:230px" placeholder="数字或字母，≤6 位" autocomplete="off"></div>
         <button class="btn" id="btnSavePwd">保存密码</button>
@@ -353,7 +389,12 @@
       </ul>
       <h4>五、云端同步（自动）</h4>
       <ul>
-        <li>档案数据保存后自动实时同步到云端，无需任何设置。换设备时直接搜索车牌、输入密码进入，看到的即是最新数据。</li>
+        <li>档案数据保存后自动实时同步到云端，无需任何设置。换设备时直接搜索车牌、输入密码进入，看到的即是最新数据（含档案密码设置）。</li>
+      </ul>
+      <h4>六、Excel 账单导入与分析画像</h4>
+      <ul>
+        <li>在「记录管理」中可下载账单模板，按模板填写后导入，系统会智能识别类型、日期、金额等字段，预览确认后追加录入。</li>
+        <li>在「数据分析与画像」标签页可查看历史数据总结研判与车辆画像（能源结构、补能习惯、使用强度、成本研判等）。</li>
       </ul>
     </div>
     <div style="text-align:right;margin-top:12px"><button class="btn" id="btnHelpClose">关闭</button></div>
@@ -558,7 +599,7 @@ async function bkPush(prof){   // 保存后推送到云端（唯一云端写入�
   try{
     const map=await bkLoad();
     const now=Date.now();
-    const content=JSON.stringify({plate:prof.plate,backupAt:now,profile:{name:prof.name||'',createdAt:prof.createdAt,noPwd:!!prof.noPwd},data:prof.data});
+    const content=JSON.stringify({plate:prof.plate,backupAt:now,profile:{name:prof.name||'',createdAt:prof.createdAt,noPwd:!!prof.noPwd,pwd:(prof.data&&prof.data.pwd)||null},data:prof.data});
     let gid=map[prof.plate];
     if(gid){
       const r=await fetch('https://api.github.com/gists/'+gid,{method:'PATCH',headers:bkHdr(),body:JSON.stringify({files:{'backup.json':{content}}})});
@@ -596,6 +637,7 @@ function applyBk(pl,bk){
   prof.name=p.name||prof.name||'';
   prof.createdAt=prof.createdAt||p.createdAt||Date.now();
   prof.data=bk.data||emptyData();
+  if(p.pwd) prof.data.pwd=p.pwd; else if(!prof.data.pwd){/* 云端无自定义密码：保持默认 */}
   if(p.noPwd) prof.noPwd=true;
   prof.updatedAt=bk.backupAt||Date.now();
   prof.bkAt=bk.backupAt||Date.now();
@@ -794,6 +836,7 @@ function renderTrend(){
 /* ═══════════════ 记录管理 ═══════════════ */
 function renderRecords(){
   document.getElementById('recFormPanel').style.display=masked()?'none':'';
+  document.getElementById('impPanel').style.display=masked()?'none':'';
   const fy=document.getElementById('fltYear').value, ft=document.getElementById('fltType').value, kw=document.getElementById('fltKw').value.trim();
   let rs=S.records.filter(r=>(!fy||r.y===+fy)&&(!ft||r.type===ft)&&(!kw||(r.purpose||'').includes(kw)));
   rs.sort((a,b)=>(b.y*10000+b.m*100+b.d)-(a.y*10000+a.m*100+a.d));
@@ -855,6 +898,182 @@ function renderOtTable(){
   document.getElementById('otTable').innerHTML=h+'</tbody>';
 }
 window.delOt=function(id){ if(!requireUnlock())return; if(!confirm('确定删除？'))return; S.oneTime=S.oneTime.filter(o=>o.id!==id); save(); renderOtTable(); };
+
+/* ═══════════════ Excel 账单导入（智能识别 + 模板下载） ═══════════════ */
+function xlsxReady(){ return !window.__noXlsx&&typeof XLSX!=='undefined'; }
+const normH=s=>String(s==null?'':s).trim().replace(/[\s（）()【】\[\]：:]/g,'');
+const TMAP=[['charge',['充电','充点','电费','电动']],['fuel',['加油','燃油','汽油','油费']],['expense',['用车费用','用车','费用','停车','高速','通行','其他']]];
+/* 智能表头识别：在前 6 行内寻找含关键词的行作为表头，返回各字段列号 */
+function xlDetectHeader(rows){
+  const KW={type:['类型','类别'],date:['日期','时间'],amount:['金额','消费','支出','费用','钱'],cap:['容量','电量','度数','升数','充电量','加油量','数量'],purpose:['用途','备注','说明','项目','摘要','描述']};
+  for(let i=0;i<Math.min(rows.length,6);i++){
+    const row=rows[i]||[]; const idx={}; let hit=0;
+    row.forEach((c,ci)=>{ const h=normH(c); if(!h) return;
+      for(const k in KW){ if(idx[k]==null&&KW[k].some(w=>h.includes(w))){ idx[k]=ci; hit++; } } });
+    if(hit>=2&&idx.date!=null&&idx.amount!=null) return {rowIdx:i,idx};
+  }
+  return null;   // 未识别到表头：按固定列序处理（类型/日期/金额/容量/用途）
+}
+/* 智能日期解析：支持 yyyy-mm-dd、yyyy/mm/dd、yyyymmdd、yyyy年m月d日、仅年月、Excel 日期序列值 */
+function xlParseDate(v){
+  if(v==null||v==='') return null;
+  if(typeof v==='number'&&v>15000&&v<80000){ const d=XLSX.SSF.parse_date_code(v); return {y:d.y,m:d.m,d:d.d}; }
+  if(v instanceof Date) return {y:v.getFullYear(),m:v.getMonth()+1,d:v.getDate()};
+  const s=String(v).trim(); let m;
+  if((m=s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/))) return {y:+m[1],m:+m[2],d:+m[3]};
+  if((m=s.match(/^(\d{4})年(\d{1,2})月(\d{1,2})日?/))) return {y:+m[1],m:+m[2],d:+m[3]};
+  if((m=s.match(/^(\d{4})[-/.年](\d{1,2})月?$/))) return {y:+m[1],m:+m[2],d:0};   // 仅年月：按当月家充桩方式记录（日=0）
+  if((m=s.match(/^(\d{4})(\d{2})(\d{2})$/))) return {y:+m[1],m:+m[2],d:+m[3]};
+  return null;
+}
+function parseXlsxFile(file){   // 解析账单文件 → {ok:[], bad:[], header:boolean}
+  return file.arrayBuffer().then(buf=>{
+    const wb=XLSX.read(buf,{type:'array'});
+    const ws=wb.Sheets[wb.SheetNames[0]];
+    const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:true});
+    const det=xlDetectHeader(rows);
+    let data, idx;
+    if(det){ data=rows.slice(det.rowIdx+1); idx=det.idx; }
+    else { data=rows.filter(r=>r.some(c=>String(c).trim()!=='')); idx={type:0,date:1,amount:2,cap:3,purpose:4}; }
+    const ok=[], bad=[];
+    data.forEach((row,ri)=>{
+      if(!row||!row.some(c=>String(c).trim()!=='')) return;
+      const err=[]; const tn=normH(row[idx.type]);
+      let type=''; for(const [t,ks] of TMAP) if(!type&&ks.some(k=>tn.includes(k))) type=t;
+      if(!type) err.push('无法识别类型');
+      const dp=xlParseDate(row[idx.date]); if(!dp) err.push('日期格式无法识别');
+      const amount=parseFloat(String(row[idx.amount]).replace(/[,，元]/g,'')); if(isNaN(amount)||amount<0) err.push('金额无效');
+      let cap=idx.cap!=null?(parseFloat(String(row[idx.cap]))||0):0;
+      let purpose=idx.purpose!=null?String(row[idx.purpose]||'').trim():'';
+      if(err.length){ bad.push({row:(det?det.rowIdx+2:1)+ri, cells:row.map(String).join(' / '), err:err.join('；')}); return; }
+      if(type==='expense'){ purpose=purpose||'其他'; cap=0; }
+      else { const home=dp&&dp.d===0||/家充/.test(purpose); purpose=home?'家充桩':(purpose||''); if(home&&dp) dp.d=0; }
+      ok.push({type,y:dp.y,m:dp.m,d:dp.d,amount,cap,purpose});
+    });
+    return {ok,bad,header:!!det};
+  });
+}
+function showImportPreview(res){   // 预览确认后追加导入（不覆盖已有记录）
+  const tn={charge:'充电',fuel:'加油',expense:'用车费用'};
+  let h=`<div style="font-size:13px;margin-bottom:10px">${res.header?'已智能识别表头':'未识别到表头，按「类型/日期/金额/容量/用途」列序解析'}：成功识别 <b style="color:#10b981">${res.ok.length}</b> 条${res.bad.length?`，<b style="color:#ef4444">${res.bad.length}</b> 条无法识别（将跳过）`:''}。导入方式为追加，不会覆盖已有记录。</div>`;
+  h+='<div class="scroll" style="max-height:46vh"><table><thead><tr><th class="l">日期</th><th class="l">类型</th><th>金额(元)</th><th>容量</th><th class="l">用途</th></tr></thead><tbody>';
+  res.ok.slice(0,60).forEach(r=>{
+    const ds=r.d===0?`${r.y}-${r.m}（按月）`:`${r.y}-${String(r.m).padStart(2,'0')}-${String(r.d).padStart(2,'0')}`;
+    h+=`<tr class="improw-ok"><td class="l">${ds}</td><td class="l">${tn[r.type]}</td><td>${r.amount.toFixed(2)}</td><td>${r.cap?r.cap.toFixed(2):'—'}</td><td class="l">${esc(r.purpose)}</td></tr>`;});
+  if(res.ok.length>60) h+=`<tr><td colspan="5" class="l" style="color:var(--sub)">…其余 ${res.ok.length-60} 条略…</td></tr>`;
+  res.bad.slice(0,20).forEach(b=>{ h+=`<tr class="improw-bad"><td class="l" colspan="4">第 ${b.row} 行：${esc(b.cells)}</td><td class="l">${esc(b.err)}</td></tr>`; });
+  h+='</tbody></table></div>';
+  h+='<div style="text-align:right;margin-top:14px;display:flex;gap:8px;justify-content:flex-end"><button class="btn gray" id="impNo">取消</button>'+(res.ok.length?'<button class="btn" id="impYes">确认导入</button>':'')+'</div>';
+  const mask=document.createElement('div'); mask.id='impMask';
+  mask.innerHTML='<div class="impbox"><h3 style="margin-bottom:10px">导入预览</h3>'+h+'</div>';
+  document.body.appendChild(mask);
+  mask.querySelector('#impNo').onclick=()=>mask.remove();
+  const yes=mask.querySelector('#impYes');
+  if(yes) yes.onclick=()=>{ let n=0;
+    res.ok.forEach(r=>{ S.records.push({id:S.nextId++,type:r.type,y:r.y,m:r.m,d:r.d,amount:r.amount,cap:r.cap,purpose:r.purpose}); n++; });
+    save(); initYears(); refresh(); mask.remove(); show(`已成功导入 ${n} 条记录，并自动同步到云端`); };
+}
+function downloadTpl(){   // 生成并下载 Excel 账单模板（含填写说明）
+  if(!xlsxReady()){ show('Excel 组件未加载，请检查网络后刷新'); return; }
+  const aoa=[
+    ['类型','日期','金额（元）','容量','用途/备注'],
+    ['充电','2026-08-01',35.6,42.5,'外充'],
+    ['充电','2026-08',47.2,58,'家充桩'],
+    ['加油','2026-08-15',200,25.3,''],
+    ['用车费用','2026-08-20',19,'出机场'],
+    ['用车费用','2026-08-22',56.99,'杭州到青溪高速'],
+    [],
+    ['填写说明：'],
+    ['1. 类型：充电 / 加油 / 用车费用（三选一，从第 2 行开始填写，表头行无需修改）'],
+    ['2. 日期：支持 2026-08-01、2026/8/1、2026年8月1日 等格式；只填到月（如 2026-08）将按当月汇总记录'],
+    ['3. 金额：消费金额（元），必填；容量：充电填度数（kWh）、加油填升数（L），用车费用不填'],
+    ['4. 用途/备注：用车费用建议填写（如停车费、高速费）；充电填“家充桩”可标记为家充'],
+    ['5. 导入方式为追加，不会覆盖档案已有记录；无法识别的行会在预览中标红跳过']];
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols']=[{wch:10},{wch:13},{wch:11},{wch:9},{wch:58}];
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'账单');
+  XLSX.writeFile(wb,`用车费用账单模板-${plate||'通用'}.xlsx`);
+}
+
+/* ═══════════════ 历史数据分析与车辆画像研判 ═══════════════ */
+function profileInsights(){
+  const R=S.records, n=R.length;
+  const cs=R.filter(r=>r.type==='charge'), fs=R.filter(r=>r.type==='fuel'), es=R.filter(r=>r.type==='expense');
+  const sum=a=>a.reduce((s,r)=>s+r.amount,0);
+  const cAmt=sum(cs), fAmt=sum(fs), eAmt=sum(es), energy=cAmt+fAmt;
+  const miles=Object.values(S.mileage), totMile=miles.reduce((s,v)=>s+(+v||0),0);
+  const homeN=cs.filter(r=>r.purpose==='家充桩').length;
+  const avgMile=miles.length?totMile/miles.length:0;
+  const perKm=totMile>0?energy/totMile:null;
+  const unitC=cs.reduce((s,r)=>s+(r.cap||0),0)>0?cAmt/cs.reduce((s,r)=>s+(r.cap||0),0):null;
+  const unitF=fs.reduce((s,r)=>s+(r.cap||0),0)>0?fAmt/fs.reduce((s,r)=>s+(r.cap||0),0):null;
+  let maxE=null; const emap={};
+  R.forEach(r=>{ if(r.type==='expense') return; const k=r.y*100+r.m; emap[k]=(emap[k]||0)+r.amount; });
+  Object.keys(emap).forEach(k=>{ if(!maxE||emap[k]>emap[maxE.k]) maxE={k:+k,v:emap[k]}; });
+  return {n,cs,fs,es,cAmt,fAmt,eAmt,energy,totMile,homeN,avgMile,perKm,unitC,unitF,maxE,mileCount:miles.length};
+}
+function renderAnalysis(){
+  document.getElementById('anaMask').style.display=masked()?'':'none';
+  document.getElementById('anaBody').style.display=masked()?'none':'';
+  if(masked()) return;
+  const st=profileInsights(), R=S.records;
+  if(!st.n){ ['chAnaTrend','chAnaCat'].forEach(id=>{ if(charts[id]){ charts[id].destroy(); delete charts[id]; } });
+    document.getElementById('anaKpis').innerHTML='';
+    document.getElementById('profileTags').innerHTML='';
+    document.getElementById('profileText').innerHTML='暂无历史记录，先去「记录管理」添加账单，或使用 Excel 导入后再来看分析画像。';
+    document.getElementById('anaYearTable').innerHTML=''; return; }
+  const ys=years();
+  const fxSum=ys.reduce((s,y)=>{ const f=S.fixed[y]||{}; return s+(f.insurance||0)+(f.pass||0)+(f.other||0); },0);
+  const otSum=S.oneTime.reduce((s,o)=>s+o.amount,0);
+  const total=st.energy+st.eAmt+fxSum;
+  /* KPI 卡片 */
+  const kpis=[
+    ['累计支出(元)',money(total),'c-red','油电+用车+固定费用'],
+    ['记录条数',st.n+'','c-blue',`充电 ${st.cs.length} · 加油 ${st.fs.length} · 费用 ${st.es.length}`],
+    ['油电合计(元)',money(st.energy),'c-green',`充电 ${money(st.cAmt)} / 加油 ${money(st.fAmt)}`],
+    ['累计里程(公里)',fmt(st.totMile,0),'c-purple',st.mileCount?`已填 ${st.mileCount} 个月`:'未填里程'],
+    ['平均每公里油电',st.perKm?money(st.perKm,3):'—','c-orange','油电合计 ÷ 里程'],
+    ['家充占比',st.cs.length?(st.homeN/st.cs.length*100).toFixed(0)+'%':'—','c-cyan',`家充 ${st.homeN} / 共 ${st.cs.length} 次`]];
+  document.getElementById('anaKpis').innerHTML=kpis.map(k=>
+    `<div class="kpi"><div class="lab">${k[0]}</div><div class="val ${k[2]}">${k[1]}</div><div class="ext">${k[3]}</div></div>`).join('');
+  /* 画像标签与研判文字 */
+  const tags=[]; const ins=[];
+  const eShare=st.energy>0?st.cAmt/st.energy*100:0;
+  const vType=st.energy<=0?null:(eShare>=80?'纯电为主':(eShare>=35?'油电混合':(eShare>0?'燃油为主':'纯燃油')));
+  if(vType) tags.push('🔋 '+vType);
+  tags.push(st.avgMile>=1500?'🛣 高频用车':(st.avgMile>=800?'🚗 日常代步':'🏠 低频出行'));
+  if(st.cs.length&&st.homeN/st.cs.length>=0.5) tags.push('⚡ 家充为主');
+  const yrTot={}; ys.forEach(y=>yrTot[y]=yearAgg(y).total); const topY=ys.reduce((a,b)=>yrTot[b]>yrTot[a]?b:a,ys[0]);
+  tags.push('💰 '+topY+' 年支出最高');
+  document.getElementById('profileTags').innerHTML=tags.map(t=>`<span class="tagline">${t}</span>`).join('');
+  const span0=Math.min(...R.map(r=>r.y)), span1=Math.max(...R.map(r=>r.y));
+  let s1=`<b>① 能源结构</b>：该车记录覆盖 ${span0}–${span1} 年，油电累计支出 ${money(st.energy)} 元`;
+  if(st.energy>0) s1+=`，其中充电 ${money(st.cAmt)} 元（${eShare.toFixed(0)}%）、加油 ${money(st.fAmt)} 元（${(100-eShare).toFixed(0)}%）`+(vType?`，判定为「${vType}」用车模式`:'');
+  if(st.unitC) s1+=`。充电平均单价 ${money(st.unitC)} 元/kWh`;
+  if(st.unitF) s1+=(st.unitC?'，':'。')+`加油平均单价 ${money(st.unitF)} 元/L`;
+  ins.push(s1+'。');
+  if(st.cs.length){
+    ins.push(`<b>② 补能习惯</b>：共充电 ${st.cs.length} 次${st.homeN?`，其中家充桩 ${st.homeN} 次（${(st.homeN/st.cs.length*100).toFixed(0)}%）${st.homeN/st.cs.length>=0.5?'，家充条件良好，能源成本可控':'，外充占比较高，可关注家充安装或谷电时段充电以降低单价'}`:''}；加油 ${st.fs.length} 次${st.unitF?`，平均油价 ${money(st.unitF)} 元/L`:''}。`); }
+  ins.push(`<b>③ 使用强度</b>：${st.mileCount?`已记录里程 ${st.mileCount} 个月、累计 ${fmt(st.totMile,0)} 公里，月均 ${fmt(st.avgMile,0)} 公里，属于${st.avgMile>=1500?'高频用车（长途/通勤距离较长）':(st.avgMile>=800?'中等强度的日常代步':'低频短途出行')}。`:'尚未填写每月里程，建议在「里程与费用设置」中补全，以获得每公里成本分析。'}`);
+  ins.push(`<b>④ 成本研判</b>：${st.perKm?`每公里油电成本约 ${money(st.perKm,3)} 元，${st.perKm<0.15?'经济性优秀（典型家充为主的电车水平）':(st.perKm<0.4?'处于合理区间':'偏高，建议提高家充比例或优化出行结构')}。`:'因缺少里程数据暂无法计算每公里成本。'}${st.maxE?` 单月油电支出峰值出现在 ${Math.floor(st.maxE.k/100)} 年 ${st.maxE.k%100} 月（${money(st.maxE.v)} 元），多为长途出行或季节因素。`:''} 全周期总支出（含保险等固定费用）约 ${money(total)} 元${otSum?`，另有购车/车品一次性支出 ${money(otSum)} 元`:''}。`);
+  const maint=st.es.filter(r=>/补胎|维修|保养/.test(r.purpose||'')), park=st.es.filter(r=>/停车/.test(r.purpose||''));
+  ins.push(`<b>⑤ 维保与杂项</b>：用车费用共 ${money(st.eAmt)} 元；其中停车类 ${park.length} 笔（${money(park.reduce((s,r)=>s+r.amount,0))} 元）、补胎/维保类 ${maint.length} 笔（${money(maint.reduce((s,r)=>s+r.amount,0))} 元）${maint.length===0?'，车况稳定无维修记录':'，建议关注轮胎与常规保养周期'}。`);
+  document.getElementById('profileText').innerHTML=ins.map(t=>`<div style="margin-bottom:6px">${t}</div>`).join('');
+  /* 全部年份的月度油电趋势 */
+  const pts=[]; ys.forEach(y=>{ const agg=monthAgg(y); for(let m=1;m<=12;m++){ const e=agg[m].charge+agg[m].fuel; if(e>0) pts.push({l:`${y}-${String(m).padStart(2,'0')}`,v:e}); } });
+  mkChart('chAnaTrend',{type:'bar',data:{labels:pts.map(p=>p.l),datasets:[{label:'油电支出(元)',data:pts.map(p=>p.v),backgroundColor:'#3b82f6',borderRadius:2}]},
+    options:{...baseOpt('元'),plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>'油电 '+money(c.parsed.y)+' 元'}}},scales:{x:{grid:{display:false},ticks:{autoSkip:true,maxTicksLimit:18,font:{size:10}}},y:{grid:gridOpt}}}});
+  const cats={}; st.es.forEach(r=>{ const c=purposeCat(r.purpose); cats[c]=(cats[c]||0)+r.amount; });
+  const colors={'停车费':'#3b82f6','高速/通行':'#8b5cf6','补胎/维保':'#ef4444','其他':'#94a3b8'};
+  const catTotal=Object.values(cats).reduce((a,b)=>a+b,0)||1;
+  mkChart('chAnaCat',{type:'doughnut',data:{labels:Object.keys(cats),datasets:[{data:Object.values(cats),backgroundColor:Object.keys(cats).map(c=>colors[c]||'#94a3b8')}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right'},tooltip:{callbacks:{label:c=>c.label+': '+money(c.parsed)+' 元 ('+(c.parsed/catTotal*100).toFixed(1)+'%)'}}}}});
+  /* 分年汇总表 */
+  let h='<thead><tr><th class="l">年份</th><th>充电(元)</th><th>加油(元)</th><th>用车费用(元)</th><th>固定费用(元)</th><th>合计(元)</th><th>里程(公里)</th><th>元/公里</th></tr></thead><tbody>';
+  ys.forEach(y=>{ const t=yearAgg(y);
+    h+=`<tr><td class="l"><b>${y}</b></td><td>${money(t.charge)}</td><td>${money(t.fuel)}</td><td>${money(t.expense)}</td><td>${money(t.fixed)}</td><td><b>${money(t.total)}</b></td><td>${fmt(t.mileage,1)}</td><td>${t.perKm?money(t.perKm,3):'—'}</td></tr>`;});
+  document.getElementById('anaYearTable').innerHTML=h+'</tbody>';
+}
 
 /* ═══════════════ 车辆档案库 ═══════════════ */
 function profStats(prof){
@@ -1104,7 +1323,7 @@ function exportCsv(){
 }
 
 /* ═══════════════ 初始化与事件 ═══════════════ */
-function refresh(){ renderOverview(); renderCompare(); renderTrend(); renderRecords(); renderSettings(); }
+function refresh(){ renderOverview(); renderCompare(); renderTrend(); renderRecords(); renderAnalysis(); renderSettings(); }
 function initYears(){
   const ys=years();
   document.getElementById('yearSel').innerHTML=ys.map(y=>`<option value="${y}"${y===curYear?' selected':''}>${y} 年</option>`).join('');
@@ -1238,6 +1457,18 @@ async function init(){
   };
   document.getElementById('btnExport').onclick=exportJson;
   document.getElementById('btnCsv').onclick=exportCsv;
+  // ── Excel 账单导入：模板下载 + 智能识别预览后追加导入 ──
+  document.getElementById('btnTpl').onclick=()=>{ if(!requireUnlock())return; downloadTpl(); };
+  document.getElementById('xlsxFile').onchange=e=>{
+    const inp=e.target;
+    if(!requireUnlock()){inp.value='';return;}
+    const f=inp.files[0];
+    if(!f){return;}
+    if(!xlsxReady()){show('Excel 组件未加载，请检查网络后刷新页面');inp.value='';return;}
+    show('正在解析账单…');
+    parseXlsxFile(f).then(showImportPreview).catch(err=>{show('解析失败：'+(err&&err.message||err));});
+    inp.value='';
+  };
   document.getElementById('fileImport').onchange=e=>{
     if(!requireUnlock()){e.target.value='';return;}
     const f=e.target.files[0]; if(!f)return;
