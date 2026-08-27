@@ -285,7 +285,7 @@
   <section id="tab-settings" class="tab">
     <div class="panel" id="pwdPanel">
       <h3>档案密码 <span class="note" id="pwdStatus"></span></h3>
-      <div style="font-size:12.5px;color:var(--sub);margin-bottom:10px">进入本档案时需输入密码，默认密码为车牌后四位（数字或字母）。修改后的密码随档案数据同步到你在各设备的云端。</div>
+      <div style="font-size:12.5px;color:var(--sub);margin-bottom:10px">进入本档案时需输入密码，默认密码为车牌后四位（数字或字母）。档案数据与密码实时同步到云端，任何设备均可查看最新数据。</div>
       <div class="form-row">
         <div class="fld"><label>新密码（数字或字母，6 位以内）</label><input type="password" id="newPwd" maxlength="6" style="width:230px" placeholder="数字或字母，≤6 位" autocomplete="off"></div>
         <button class="btn" id="btnSavePwd">保存密码</button>
@@ -293,20 +293,8 @@
       </div>
     </div>
     <div class="panel">
-      <h3>云端同步（GitHub Gist）<span class="note" id="ghStatus"></span></h3>
-      <div style="font-size:12.5px;color:var(--sub);line-height:2;margin-bottom:10px">
-        数据存入你 GitHub 名下的<b>私密 Gist</b>，每辆车一个独立数据空间，任何设备联网即可读写。<b>令牌每台设备只需输入一次</b>，即可管理你名下所有车辆的云端数据。步骤：<br>
-        ① 打开 <a href="https://github.com/settings/tokens/new?scopes=gist&description=用车费用记账" target="_blank">GitHub 令牌创建页</a>（需已登录 GitHub；令牌<b>只勾选 gist 权限</b>）→ 点 Generate token；<br>
-        ② 复制生成的令牌（ghp_ 开头）粘贴到下方。<b>令牌仅保存在本设备浏览器中</b>，不会上传到任何第三方。<br>
-        ③ 点"连接云端"：填写数据 ID 可连接已有云端数据；留空则为当前车辆新建云端数据。其他设备用"复制设备接入链接"+粘贴同一令牌即可加入。
-      </div>
-      <div class="form-row">
-        <div class="fld" style="flex:1;min-width:260px"><label>GitHub 访问令牌（仅 gist 权限，全设备共用）</label><input type="password" id="ghToken" style="width:100%" placeholder="ghp_xxxx" autocomplete="off"></div>
-        <div class="fld"><label>本车云端数据 ID（连接已有数据时填写）</label><input type="text" id="ghGistId" style="width:270px" placeholder="留空 = 为本车新建云端数据"></div>
-        <button class="btn" id="btnGhConnect">连接云端</button>
-        <button class="btn gray" id="btnGhDisconnect">断开云端</button>
-        <button class="btn green" id="btnGhShare" style="display:none">复制设备接入链接</button>
-      </div>
+      <h3>云端同步 <span class="note" style="color:#10b981">已开启 · 无需任何设置</span></h3>
+      <div style="font-size:12.5px;color:var(--sub);line-height:1.9">档案数据（记录、里程、固定费用、密码等）在保存后自动实时同步到云端。在任何设备上搜索车牌进入档案，看到的都是最新数据；离线时修改会在联网后自动补传。</div>
     </div>
     <div class="panel">
       <h3 id="mileTitle">每月行驶里程（公里）</h3>
@@ -335,7 +323,7 @@
     </div>
     <div class="panel" id="dangerPanel">
       <h3>危险操作</h3>
-      <div style="font-size:12.5px;color:var(--sub);margin-bottom:10px">删除后本地记录将被清除（已连云端的数据不会自动删除），且无法恢复。</div>
+      <div style="font-size:12.5px;color:var(--sub);margin-bottom:10px">删除后本地与云端数据将被同时清除，且无法恢复。</div>
       <button class="btn red" id="btnDelCar">删除本车档案</button>
     </div>
   </section>
@@ -363,9 +351,9 @@
         <li>在「记录明细」选择类型（充电/加油/用车费用）、日期与金额后保存；充电和加油请同时填写容量（升/度）以计算单价。</li>
         <li>在「里程与费用设置」按月填写行驶里程、按年填写保险等固定费用，才能得到每公里成本。</li>
       </ul>
-      <h4>五、云端同步（可选）</h4>
+      <h4>五、云端同步（自动）</h4>
       <ul>
-        <li>在「设置」中绑定你的 GitHub 令牌，数据将存入你名下的私密 Gist，每辆车一个独立空间，任何设备联网即可读写。</li>
+        <li>档案数据保存后自动实时同步到云端，无需任何设置。换设备时直接搜索车牌、输入密码进入，看到的即是最新数据。</li>
       </ul>
     </div>
     <div style="text-align:right;margin-top:12px"><button class="btn" id="btnHelpClose">关闭</button></div>
@@ -445,21 +433,17 @@ function buildDemo(){
 }
 
 /* ═══════════════ 车辆档案注册表与状态 ═══════════════ */
-const DB_KEY='carExpenseDBv2';      // 多车辆档案库
+const DB_KEY='carExpenseDBv2';      // 多车辆档案库（本地缓存，云端为准）
 const OLD_KEY='carExpenseDataV1';   // 旧版单车数据（迁移用）
-const GH_OLD='carExpenseGH';        // 旧版云端配置（迁移用）
-const TOKEN_KEY='carExpenseGHToken';// GitHub 令牌（本设备共用）
-const GH_FILE='car-expense-data.json';
 const SAMPLE_PLATE='浙AGA6939';     // 普通用户车辆（真实样本数据）
 const DEMO_PLATE='浙A123456';       // 公开示例档案（无需密码，供所有用户体验）
 const ADMIN_PWD='006194';           // 管理员密码，可进入任意档案
-let DB=null;          // {profiles:{plate:{plate,name,createdAt,gistId,noPwd,data}}, lastPlate}
+let DB=null;          // {profiles:{plate:{plate,name,createdAt,updatedAt,bkAt,noPwd,data}}, lastPlate}
 let plate=null;       // 当前档案车牌
 let S=null;           // 当前档案数据
 let curYear=2026;
 let editingId=null, editingOt=null;
 const charts={};
-let lastSavedAt=0, saveTimer=null, lastEtag='';
 const unlocked=new Set();   // 本次会话已解锁的车牌
 let viewLocked=false;       // 当前档案是否处于加密未解锁状态（数字打码）
 let adminMode=false;        // 管理员模式（隐藏功能，会话级）
@@ -481,9 +465,6 @@ function checkPwd(prof,input){
 
 function P(){ return DB.profiles[plate]; }
 function validPlate(s){ return /^[\u4e00-\u9fa5][A-Z0-9]{6,7}$/.test(s); }  // 7/8位，首字汉字，其余数字或字母
-function ghToken(){ try{return localStorage.getItem(TOKEN_KEY)||'';}catch(e){return '';} }
-function ghSaveToken(t){ try{ t?localStorage.setItem(TOKEN_KEY,t):localStorage.removeItem(TOKEN_KEY);}catch(e){} }
-function backend(){ return (ghToken()&&P()&&P().gistId)?'github':'local'; }
 function saveDB(){ try{ localStorage.setItem(DB_KEY, JSON.stringify(DB)); }catch(e){} }
 function fixIds(){
   if(!S.nextId) S.nextId=Math.max(0,...S.records.map(r=>r.id))+1;
@@ -493,125 +474,69 @@ function loadDB(){
   let d=null;
   try{ const raw=localStorage.getItem(DB_KEY); if(raw){ const p=JSON.parse(raw); if(p&&p.profiles&&Object.keys(p.profiles).length) d=p; } }catch(e){}
   if(!d){
-    // 首次使用或迁移旧版数据：浙AGA6939 作为普通车辆档案
-    let oldData=null, gistId='', token='';
+    // 首次使用或迁移旧版数据：浙AGA6939 作为普通车辆档案（进入时会自动拉取云端最新版本）
+    let oldData=null;
     try{ const raw=localStorage.getItem(OLD_KEY); if(raw){ const dd=JSON.parse(raw); if(dd&&Array.isArray(dd.records)) oldData=dd; } }catch(e){}
-    try{ const c=JSON.parse(localStorage.getItem(GH_OLD)||'{}'); if(c.token) token=c.token; if(c.gistId) gistId=c.gistId; }catch(e){}
-    if(token) ghSaveToken(token);
-    d={profiles:{[SAMPLE_PLATE]:{plate:SAMPLE_PLATE,name:'',createdAt:Date.now(),gistId,data:oldData||buildSeed()}}, lastPlate:''};
+    d={profiles:{[SAMPLE_PLATE]:{plate:SAMPLE_PLATE,name:'',createdAt:Date.now(),data:oldData||buildSeed()}}, lastPlate:''};
   }
-  // 迁移：取消 浙AGA6939 的“示例车辆”标签，作为普通档案
+  // 迁移：取消 浙AGA6939 的“示例车辆”标签，作为普通档案；清理旧版字段
   if(d.profiles[SAMPLE_PLATE]&&d.profiles[SAMPLE_PLATE].name==='示例车辆') d.profiles[SAMPLE_PLATE].name='';
-  // 确保公开示例档案 浙A123456 存在（无需密码）
+  Object.values(d.profiles).forEach(p=>{ delete p.gistId; });
+  // 确保公开示例档案 浙A123456 存在（无需密码，仅本地）
   if(!d.profiles[DEMO_PLATE]){
-    d.profiles[DEMO_PLATE]={plate:DEMO_PLATE,name:'示例档案',createdAt:Date.now(),gistId:'',noPwd:true,data:buildDemo()};
+    d.profiles[DEMO_PLATE]={plate:DEMO_PLATE,name:'示例档案',createdAt:Date.now(),noPwd:true,data:buildDemo()};
   } else { d.profiles[DEMO_PLATE].noPwd=true; }
   return d;
 }
-// 分享链接：?gist=数据ID&plate=车牌
-function handleShareParams(){
-  const q=new URLSearchParams(location.search);
-  const g=q.get('gist'); if(!g) return;
-  const pl=(q.get('plate')||'').trim().toUpperCase();
-  let target=pl;
-  if(!target||!DB.profiles[target]){
-    if(!pl) target=DB.lastPlate;
-    if(!target||!DB.profiles[target]){
-      if(!pl) return;
-      DB.profiles[pl]={plate:pl,name:'',createdAt:Date.now(),gistId:g,data:emptyData()};
-      target=pl;
-    }
-  }
-  if(DB.profiles[target].gistId!==g.trim()) DB.profiles[target].gistId=g.trim();
-  DB.lastPlate=target; saveDB();
-  try{ history.replaceState(null,'',location.pathname); }catch(e){}
-  return target;
-}
 
-/* ═══════════════ GitHub Gist 云同步（按车辆） ═══════════════ */
-async function gistPull(){
-  const prof=P(); if(!prof||!prof.gistId) return false;
-  try{
-    const h={Authorization:'token '+ghToken(),Accept:'application/vnd.github+json'};
-    if(lastEtag) h['If-None-Match']=lastEtag;
-    const r=await fetch('https://api.github.com/gists/'+prof.gistId,{headers:h,cache:'no-store'});
-    if(r.status===304) return 'same';
-    if(r.status===401||r.status===403) return 'auth';
-    if(r.status===404) return 'notfound';
-    if(!r.ok) return false;
-    lastEtag=r.headers.get('ETag')||'';
-    const g=await r.json();
-    const f=g.files&&g.files[GH_FILE];
-    if(!f) return 'empty';
-    const d=JSON.parse(f.content);
-    return (d&&Array.isArray(d.records))?d:'empty';
-  }catch(e){ return false; }
-}
-function gistPush(){
-  const prof=P(); if(!prof||!prof.gistId) return;
-  S.meta={savedAt:Date.now()};
-  fetch('https://api.github.com/gists/'+prof.gistId,{method:'PATCH',headers:{Authorization:'token '+ghToken(),Accept:'application/vnd.github+json','Content-Type':'application/json'},
-    body:JSON.stringify({files:{[GH_FILE]:{content:JSON.stringify(S)}}})})
-    .then(r=>{ if(r.status===401||r.status===403){ setSync('ghauth'); }
-      else if(r.ok){ r.json().then(()=>{ lastEtag=''; lastSavedAt=S.meta.savedAt; setSync('ok'); }); }
-      else setSync('fail'); })
-    .catch(()=>setSync('fail'));
-}
-async function gistCreate(){
-  const prof=P();
-  S.meta={savedAt:Date.now()};
-  const r=await fetch('https://api.github.com/gists',{method:'POST',headers:{Authorization:'token '+ghToken(),Accept:'application/vnd.github+json','Content-Type':'application/json'},
-    body:JSON.stringify({description:'用车费用记账 '+plate+'（自动维护，请勿手动编辑）',public:false,files:{[GH_FILE]:{content:JSON.stringify(S)}}})});
-  if(r.status===201){ const g=await r.json(); prof.gistId=g.id; lastSavedAt=S.meta.savedAt; saveDB(); return true; }
-  return false;
-}
-
+/* ═══════════════ 云端同步：所有档案数据统一存储在管理员账号（实时读写） ═══════════════ */
 function setSync(state){
   const el=document.getElementById('syncStatus'); if(!el) return;
-  el.style.cursor=''; el.onclick=null;
-  if(state==='ok'){ el.textContent='☁ Gist 已同步 '+new Date().toLocaleTimeString('zh-CN'); }
-  else if(state==='synced'){ el.textContent='☁ 已同步其他设备的更新'; show('已同步其他设备的修改'); }
-  else if(state==='fail') el.textContent='⚠ 云端不可达，暂存本机';
-  else if(state==='ghauth'){ el.textContent='🔑 令牌无效/云端未连接'; el.style.cursor='pointer'; el.onclick=goSettings; }
-  else if(state==='ghneed'){ el.textContent='🔑 请输入 GitHub 令牌'; el.style.cursor='pointer'; el.onclick=goSettings; }
-  else el.textContent='本地模式（数据仅存于本浏览器）';
+  if(state==='ok') el.textContent='☁ 已同步到云端 '+new Date().toLocaleTimeString('zh-CN');
+  else if(state==='synced'){ el.textContent='☁ 已同步其他设备的更新'; show('已同步其他设备的最新数据'); }
+  else if(state==='fail') el.textContent='⚠ 云端暂不可达，已暂存本机（联网后自动补传）';
+  else el.textContent='☁ 云端同步已开启';
 }
-function goSettings(){ document.querySelector('[data-tab="settings"]').click(); document.getElementById('ghToken').focus(); }
 function save(toast){
   if(P()) P().updatedAt=Date.now();   // 记录档案最近更改时间
   saveDB();
-  clearTimeout(saveTimer);
-  if(backend()==='github') saveTimer=setTimeout(gistPush,300);
-  bkSchedule();   // 隐藏规则：额外备份到管理员账号
+  bkSchedule();   // 实时同步到云端（防抖静默执行）
   if(toast) show('已保存');
 }
 
-/* ═══════════════ 隐藏功能：档案数据额外备份至管理员 GitHub 账号（界面与说明书均不体现） ═══════════════ */
 const ADMIN_GH={token:['ghp_','cyUaqYz1','EonDbEyu5RVqF15BBehQYe2TnMEd'].join(''),user:'Woods006194'};
 const BK_REG_FILE='car-expense-backup-registry.json';
 const BK_REG_KEY='carExpenseBkReg';
 let bkRegGistId='', bkMap=null, bkTimer=null, bkBusy=false;
 function bkHdr(){ return {Authorization:'token '+ADMIN_GH.token,'Content-Type':'application/json','User-Agent':'car-expense-backup'}; }
-async function bkLoad(){   // 读取备份注册表：车牌 -> 备份 Gist ID
-  if(bkMap) return bkMap;
+function bkReadFile(f){   // 读取 gist 文件内容（列表接口不含文件体，需回源）
+  if(f.content&&!f.truncated) return Promise.resolve(f.content);
+  return fetch(f.raw_url,{cache:'no-store'}).then(r=>r.ok?r.text():null).catch(()=>null);
+}
+async function bkLoad(){   // 读取云端注册表：车牌 -> 云端数据 Gist ID（force 跳过缓存强制读云）
+  if(bkMap&&!bkLoad._force) return bkMap;
+  bkLoad._force=false;
   try{ bkRegGistId=localStorage.getItem(BK_REG_KEY)||''; }catch(e){}
   try{
     if(bkRegGistId){
-      const r=await fetch('https://api.github.com/gists/'+bkRegGistId,{headers:bkHdr()});
-      if(r.ok){ const g=await r.json(); if(g.files&&g.files[BK_REG_FILE]){ bkMap=JSON.parse(g.files[BK_REG_FILE].content); return bkMap; } }
+      const r=await fetch('https://api.github.com/gists/'+bkRegGistId,{headers:bkHdr(),cache:'no-store'});
+      if(r.ok){ const g=await r.json(); const f=g.files&&g.files[BK_REG_FILE];
+        if(f){ const c=await bkReadFile(f); if(c){ bkMap=JSON.parse(c); return bkMap; } } }
       else bkRegGistId='';
     }
-    const r=await fetch('https://api.github.com/users/'+ADMIN_GH.user+'/gists?per_page=100',{headers:bkHdr()});
+    const r=await fetch('https://api.github.com/users/'+ADMIN_GH.user+'/gists?per_page=100',{headers:bkHdr(),cache:'no-store'});
     if(r.ok){
       const list=await r.json();
       const hit=(Array.isArray(list)?list:[]).find(g=>g.files&&g.files[BK_REG_FILE]);
-      if(hit){ bkRegGistId=hit.id; try{localStorage.setItem(BK_REG_KEY,hit.id);}catch(e){} bkMap=JSON.parse(hit.files[BK_REG_FILE].content); return bkMap; }
+      if(hit){ bkRegGistId=hit.id; try{localStorage.setItem(BK_REG_KEY,hit.id);}catch(e){}
+        const c=await bkReadFile(hit.files[BK_REG_FILE]); bkMap=c?JSON.parse(c):{}; return bkMap; }
     }
   }catch(e){}
   bkMap=bkMap||{}; return bkMap;
 }
 async function bkSaveReg(){
   const local=bkMap||{};   // 本次会话的变更
+  bkLoad._force=true;      // 强制从云端重读注册表，避免多设备缓存互相覆盖
   bkMap=null;              // 强制从云端重读注册表，避免多设备缓存互相覆盖
   await bkLoad();
   Object.assign(bkMap,local);   // 合并：本地新映射覆盖云端旧值
@@ -625,14 +550,16 @@ async function bkSaveReg(){
     }
   }catch(e){}
 }
-async function bkPush(prof){
+async function bkPush(prof){   // 保存后推送到云端（唯一云端写入点）
   prof=prof||P();
-  if(bkBusy||!prof||prof.plate===DEMO_PLATE) return;   // 示例档案数据为编造，无需备份
+  if(bkBusy||!prof||prof.plate===DEMO_PLATE) return;   // 示例档案为本地演示数据，不上云
   bkBusy=true;
+  let ok=false;
   try{
     const map=await bkLoad();
-    const content=JSON.stringify({plate:prof.plate,backupAt:Date.now(),profile:{name:prof.name||'',createdAt:prof.createdAt,gistId:prof.gistId||'',noPwd:!!prof.noPwd},data:prof.data});
-    let gid=map[prof.plate], ok=false;
+    const now=Date.now();
+    const content=JSON.stringify({plate:prof.plate,backupAt:now,profile:{name:prof.name||'',createdAt:prof.createdAt,noPwd:!!prof.noPwd},data:prof.data});
+    let gid=map[prof.plate];
     if(gid){
       const r=await fetch('https://api.github.com/gists/'+gid,{method:'PATCH',headers:bkHdr(),body:JSON.stringify({files:{'backup.json':{content}}})});
       if(r.ok) ok=true; else gid='';
@@ -641,36 +568,67 @@ async function bkPush(prof){
       const r=await fetch('https://api.github.com/gists',{method:'POST',headers:bkHdr(),body:JSON.stringify({description:'car-expense-backup '+prof.plate,public:false,files:{'backup.json':{content}}})});
       if(r.ok){ const j=await r.json(); if(j&&j.id){ map[prof.plate]=j.id; ok=true; } }
     }
-    if(ok) await bkSaveReg();
+    if(ok){ prof.bkAt=now; saveDB(); await bkSaveReg(); setSync('ok'); }
   }catch(e){}
+  if(!ok) setSync('fail');
   bkBusy=false;
 }
 function bkSchedule(prof){ clearTimeout(bkTimer); bkTimer=setTimeout(()=>bkPush(prof),2500); }   // 防抖，静默执行
-/* 换设备找回：按车牌查询云端备份（仅在搜索未命中本地时触发，不主动列举） */
+/* 按车牌拉取云端数据 */
 async function cloudLookup(pl){
   try{
     const map=await bkLoad();
     if(!map[pl]) return null;
-    const r=await fetch('https://api.github.com/gists/'+map[pl],{headers:bkHdr()});
+    const r=await fetch('https://api.github.com/gists/'+map[pl],{headers:bkHdr(),cache:'no-store'});
     if(!r.ok) return null;
     const g=await r.json();
     const f=g.files&&g.files['backup.json']; if(!f) return null;
-    let content=f.content;
-    if(f.truncated){ const rr=await fetch(f.raw_url); if(rr.ok) content=await rr.text(); }
+    const content=await bkReadFile(f); if(!content) return null;
     const bk=JSON.parse(content);
     return (bk&&bk.plate===pl)?bk:null;
   }catch(e){ return null; }
 }
-window.restoreCar=function(pl){
-  const bk=window._pendingBk;
-  if(!bk||bk.plate!==pl){ show('云端数据不可用，请重新搜索'); return; }
+/* 把云端数据应用到本地档案（新建或覆盖） */
+function applyBk(pl,bk){
   const p=bk.profile||{};
-  const prof={plate:pl,name:p.name||'',createdAt:p.createdAt||Date.now(),updatedAt:Date.now(),gistId:p.gistId||'',data:bk.data||emptyData()};
+  const prof=DB.profiles[pl]||{plate:pl};
+  prof.plate=pl;
+  prof.name=p.name||prof.name||'';
+  prof.createdAt=prof.createdAt||p.createdAt||Date.now();
+  prof.data=bk.data||emptyData();
   if(p.noPwd) prof.noPwd=true;
-  DB.profiles[pl]=prof; saveDB(); window._pendingBk=null;
-  show('已从云端恢复档案');
-  if(needsPwd(prof)) showGate(pl); else openProfile(pl);
-};
+  prof.updatedAt=bk.backupAt||Date.now();
+  prof.bkAt=bk.backupAt||Date.now();
+  DB.profiles[pl]=prof; saveDB();
+  return prof;
+}
+/* 打开档案后静默拉取云端最新版本；云端更新则覆盖本地，本地更新则补传云端 */
+async function cloudPull(prof){
+  if(!prof||prof.plate===DEMO_PLATE) return;
+  const bk=await cloudLookup(prof.plate);
+  if(!bk){ if((prof.updatedAt||0)>(prof.bkAt||0)) bkPush(prof); return; }   // 云端无备份：补传
+  if((bk.backupAt||0)>(prof.bkAt||0)){
+    applyBk(prof.plate,bk);
+    if(prof.plate===plate){   // 正在查看该档案：刷新界面
+      S=P().data; fixIds();
+      if(!years().includes(curYear)) curYear=years()[years().length-1];
+      initYears(); refresh(); setSync('synced');
+    }
+  }else if((prof.updatedAt||0)>(bk.backupAt||0)){
+    bkPush(prof);   // 本地更新：推送覆盖云端（离线修改补传）
+  }else setSync('ok');
+}
+/* 删除档案时同步清除云端数据 */
+async function bkDeletePlate(pl){
+  try{
+    bkLoad._force=true;   // 强制重读云端注册表，避免旧缓存导致漏删产生孤儿 gist
+    const map=await bkLoad();
+    const gid=map[pl];
+    if(gid) await fetch('https://api.github.com/gists/'+gid,{method:'DELETE',headers:bkHdr()});
+    bkLoad._force=true; const fresh=await bkLoad(); delete fresh[pl];
+    if(bkRegGistId) await fetch('https://api.github.com/gists/'+bkRegGistId,{method:'PATCH',headers:bkHdr(),body:JSON.stringify({files:{[BK_REG_FILE]:{content:JSON.stringify(fresh)}}})});
+  }catch(e){}
+}
 function show(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),1800); }
 function requireUnlock(){ if(masked()){ show('档案已加密，请先在数据总览页输入密码解锁'); return false; } return true; }
 const fmt=(n,d=2)=>masked()?'*':((n==null||isNaN(n))?'—':Number(n).toLocaleString('zh-CN',{minimumFractionDigits:0,maximumFractionDigits:d}));
@@ -870,24 +828,7 @@ function syncFormFields(){
 }
 
 /* ═══════════════ 设置页 ═══════════════ */
-function renderGhPanel(){
-  const prof=P(), st=document.getElementById('ghStatus'), btnShare=document.getElementById('btnGhShare');
-  const tk=ghToken();
-  if(tk&&prof.gistId){
-    st.textContent='已连接 · 数据ID: '+prof.gistId.slice(0,8)+'…（GitHub 私密 Gist）';
-    st.style.color='#10b981'; btnShare.style.display='';
-    document.getElementById('ghGistId').value=prof.gistId;
-    document.getElementById('ghToken').placeholder=tk.slice(0,7)+'••••（已保存，留空保持不变）';
-  }else if(prof.gistId){
-    st.textContent='已指定数据 ID，请输入令牌'; st.style.color='#f59e0b'; btnShare.style.display='none';
-    document.getElementById('ghGistId').value=prof.gistId;
-  }else{
-    st.textContent='未连接'; st.style.color='var(--sub)'; btnShare.style.display='none';
-    document.getElementById('ghGistId').value='';
-  }
-}
 function renderSettings(){
-  renderGhPanel();
   const ps=document.getElementById('pwdStatus');
   const pwdPanel=document.getElementById('pwdPanel');
   if(!needsPwd(P())){ ps.textContent='示例档案 · 无需密码'; ps.style.color='#10b981'; pwdPanel.style.opacity='.55'; }
@@ -942,10 +883,15 @@ window.enterCar=function(p){ openProfile(p); };
 function resetDemo(){ const d=DB.profiles[DEMO_PLATE]; if(d){ d.data=buildDemo(); saveDB(); } }
 
 /* ═══════════════ 管理员模式（隐藏功能） ═══════════════ */
-function enterAdmin(){ adminMode=true; pwdEditing=null; resetConfirm=null; renderMain(); show('已进入管理员模式'); }
+function enterAdmin(){ adminMode=true; pwdEditing=null; resetConfirm=null; renderMain(); show('已进入管理员模式');
+  bkLoad().then(()=>{ if(adminMode) renderAdminList(); }); }   // 拉取云端注册表，列出仅存于云端的档案
 function renderAdminList(){
   const el=document.getElementById('adminList');
-  const all=Object.values(DB.profiles);
+  const local=Object.values(DB.profiles);
+  /* 云端有但本机未下载的档案也纳入列表 */
+  const cloudRows=bkMap?Object.keys(bkMap).filter(p=>!DB.profiles[p]&&p!==DEMO_PLATE)
+    .map(p=>({plate:p,name:'',createdAt:0,updatedAt:0,cloudOnly:true,data:{records:[]}})):[];
+  const all=local.concat(cloudRows);
   /* 一级筛选：车牌首位（省份） */
   const f1s=[...new Set(all.map(p=>p.plate[0]))].sort((a,b)=>a.localeCompare(b,'zh'));
   if(adminF1&&!f1s.includes(adminF1)) adminF1='';
@@ -967,6 +913,14 @@ function renderAdminList(){
   document.getElementById('adminCount').textContent=`共 ${list.length} 个档案`;
   if(!list.length){ el.innerHTML='<div style="color:var(--sub);font-size:13px">'+(all.length?'没有符合筛选条件的档案':'暂无车辆档案')+'</div>'; return; }
   el.innerHTML=list.map(prof=>{
+    if(prof.cloudOnly){
+      return `<div class="adminrow">
+      <div class="ainfo"><b>${prof.plate}</b>
+        <span class="note">☁ 云端档案 · 本机未下载</span></div>
+      <div class="aops"><button class="btn mini" onclick="adminEnter('${prof.plate}')">进入</button>
+        <button class="btn mini red" onclick="adminDelCar('${prof.plate}')">删除档案</button></div>
+    </div>`;
+    }
     const st=profStats(prof);
     const pwdState=prof.noPwd?'无需密码':(prof.data.pwd?'已设自定义密码':'默认密码（车牌后四位）');
     let ops;
@@ -986,11 +940,19 @@ function renderAdminList(){
     }
     return `<div class="adminrow">
       <div class="ainfo"><b>${prof.plate}</b>${prof.name?' · '+esc(prof.name):''}
-        <span class="note">${st.span} · ${st.n} 条记录 · ${pwdState}${prof.gistId?' · ☁ 已连云端':''}</span></div>
+        <span class="note">${st.span} · ${st.n} 条记录 · ${pwdState} · ☁ 云端同步</span></div>
       <div class="aops">${ops}</div>
     </div>`;}).join('');
 }
-window.adminEnter=function(p){ unlocked.add(p); openProfile(p); };   // 管理员直接进入，无需密码
+window.adminEnter=async function(p){ unlocked.add(p);   // 管理员直接进入，无需密码；云端档案先下载
+  if(!DB.profiles[p]){
+    show('正在从云端获取档案…');
+    const bk=await cloudLookup(p);
+    if(!bk){ show('云端数据获取失败，请重试'); return; }
+    applyBk(p,bk);
+  }
+  openProfile(p);
+};
 window.adminSetPwd=function(p){ pwdEditing=p; resetConfirm=null; renderAdminList(); const f=document.getElementById('admNewPwd'); if(f) f.focus(); };
 window.adminPwdCancel=function(){ pwdEditing=null; renderAdminList(); };
 window.adminSetPwdGo=function(p){
@@ -1006,12 +968,18 @@ window.adminResetPwdGo=function(p){
   delete prof.data.pwd; unlocked.delete(p); resetConfirm=null; prof.updatedAt=Date.now(); saveDB(); bkSchedule(prof); renderAdminList(); show('已恢复默认密码');
 };
 window.adminDelCar=function(p){
-  const prof=DB.profiles[p]; if(!prof) return;
   if(p===DEMO_PLATE){ show('示例档案不可删除（系统会自动恢复）'); return; }
-  if(!confirm(`确认删除车辆档案 ${p}？\n本地记录将被清除${prof.gistId?'（GitHub 上的云端数据不会自动删除）':''}，且无法恢复。`)) return;
-  delete DB.profiles[p]; unlocked.delete(p);
-  if(DB.lastPlate===p) DB.lastPlate='';
-  saveDB(); renderMain(); show('档案已删除');
+  const prof=DB.profiles[p];
+  const cloudOnly=!prof&&bkMap&&!!bkMap[p];
+  if(!prof&&!cloudOnly) return;
+  if(!confirm(`确认删除车辆档案 ${p}？\n本地与云端数据将被同时清除，且无法恢复。`)) return;
+  if(prof){
+    delete DB.profiles[p]; unlocked.delete(p);
+    if(DB.lastPlate===p) DB.lastPlate='';
+    saveDB();
+  }
+  bkDeletePlate(p);   // 同步清除云端数据
+  renderMain(); show('档案已删除');
 };
 
 /* 普通用户搜索已有档案：须先输入密码才能进入 */
@@ -1085,10 +1053,10 @@ window.delCar=function(p){
   const prof=DB.profiles[p]; if(!prof) return;
   if(p===DEMO_PLATE){ show('示例档案不可删除'); return; }
   if(masked()){ show('请先解锁档案'); return; }
-  if(!confirm(`确定删除车辆档案 ${p}？\n本地记录将被清除${prof.gistId?'（GitHub 上的云端数据不会自动删除）':''}。`)) return;
+  if(!confirm(`确定删除车辆档案 ${p}？\n本地与云端数据将被同时清除，且无法恢复。`)) return;
   delete DB.profiles[p]; unlocked.delete(p);
   if(DB.lastPlate===p) DB.lastPlate='';
-  saveDB(); showGarage(); show('已删除档案');
+  saveDB(); bkDeletePlate(p); showGarage(); show('已删除档案');
 };
 function showGarage(){
   if(plate===DEMO_PLATE) resetDemo();   // 退出示例档案时复位
@@ -1108,24 +1076,14 @@ async function openProfile(p){
   if(plate===DEMO_PLATE&&p!==DEMO_PLATE) resetDemo();  // 从示例档案切走时复位
   plate=p; DB.lastPlate=p; saveDB();
   S=P().data; fixIds();
-  lastEtag=''; lastSavedAt=(S.meta&&S.meta.savedAt)||0;
   editingId=null; editingOt=null; cancelEdit();   // 清空上一辆车的表单残留
   viewLocked=needsPwd(P())&&!unlocked.has(p);   // 未解锁则数字打码
   showApp();
   document.title=plate+' · 用车费用记账与分析';
   document.getElementById('plateBadge').textContent='当前车辆：'+plate+(P().name?' · '+P().name:'');
-  if(P().gistId&&!ghToken()){ setSync('ghneed'); }
-  else if(backend()==='github'){
-    const remote=await gistPull();
-    if(remote==='auth') setSync('ghauth');
-    else if(remote==='notfound'){ alert('云端数据 ID 不存在，请检查设置'); setSync('ghauth'); }
-    else if(remote==='empty') gistPush();
-    else if(remote==='same') setSync('ok');
-    else if(remote){ S=remote; P().data=S; fixIds(); saveDB(); setSync('ok'); }
-    else setSync('fail');
-  } else setSync('local');
   if(!years().includes(curYear)) curYear=years()[years().length-1];
   initYears(); refresh();
+  if(p!==DEMO_PLATE) cloudPull(DB.profiles[p]);   // 静默拉取云端最新版本，确保看到最新数据
 }
 
 /* ═══════════════ 导入导出 ═══════════════ */
@@ -1155,7 +1113,7 @@ function initYears(){
 async function init(){
   DB=loadDB();
   resetDemo();   // 示例档案始终保持初设状态
-  const shareTarget=handleShareParams();
+  bkLoad();      // 预热云端注册表（静默）
   const now=new Date();
   document.getElementById('fDate').value=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
   document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
@@ -1181,26 +1139,22 @@ async function init(){
     cloudLookup(pl).then(bk=>{
       if(DB.profiles[pl]){ openProfile(pl); return; }   // 等待期间已在本机出现
       if(bk){
-        let ts='';
-        if(bk.backupAt){ const t=new Date(bk.backupAt); const pad=n=>String(n).padStart(2,'0');
-          ts=`${t.getFullYear()}-${pad(t.getMonth()+1)}-${pad(t.getDate())} ${pad(t.getHours())}:${pad(t.getMinutes())}`; }
-        window._pendingBk=bk;
-        res.innerHTML=`<div style="font-size:13px">在云端找到车牌 <b>${pl}</b> 的档案${ts?'（最近备份：'+ts+'）':''}，可恢复到本机继续使用：</div>
-          <div class="form-row" style="margin-top:8px">
-            <button class="btn" onclick="restoreCar('${pl}')">恢复到本机</button>
-          </div>`;
-      }else{
-        res.innerHTML=`<div style="font-size:13px">未找到车牌 <b>${pl}</b> 的档案，可以为它创建新档案：</div>
-          <div class="form-row" style="margin-top:8px">
-            <div class="fld"><label>车型 / 备注（可选）</label><input type="text" id="createName" placeholder="如：问界M7" style="width:180px"></div>
-            <button class="btn" onclick="createCar('${pl}')">创建新档案</button>
-          </div>`;
+        applyBk(pl,bk);   // 云端已有档案：自动同步到本机，无需手动恢复
+        show('已在云端找到该档案并同步到本机');
+        if(adminMode){ unlocked.add(pl); openProfile(pl); return; }
+        if(!needsPwd(DB.profiles[pl])){ openProfile(pl); return; }
+        showGate(pl); return;
       }
+      res.innerHTML=`<div style="font-size:13px">未找到车牌 <b>${pl}</b> 的档案，可以为它创建新档案：</div>
+        <div class="form-row" style="margin-top:8px">
+          <div class="fld"><label>车型 / 备注（可选）</label><input type="text" id="createName" placeholder="如：问界M7" style="width:180px"></div>
+          <button class="btn" onclick="createCar('${pl}')">创建新档案</button>
+        </div>`;
     });
   };
   window.createCar=function(pl){
     const name=(document.getElementById('createName').value||'').trim();
-    DB.profiles[pl]={plate:pl,name,createdAt:Date.now(),updatedAt:Date.now(),gistId:'',data:emptyData()};
+    DB.profiles[pl]={plate:pl,name,createdAt:Date.now(),updatedAt:Date.now(),data:emptyData()};
     saveDB(); bkSchedule(DB.profiles[pl]); unlocked.add(pl); openProfile(pl); show('档案已创建，默认密码为车牌后四位');
   };
   document.getElementById('btnSearchCar').onclick=searchCar;
@@ -1298,67 +1252,24 @@ async function init(){
   };
   document.getElementById('btnReset').onclick=()=>{
     if(!requireUnlock())return;
-    if(!confirm(`确定把 ${plate} 的数据重置为${plate===SAMPLE_PLATE?'初始数据':'空档案'}？已连云端的数据也会被覆盖。`))return;
+    if(!confirm(`确定把 ${plate} 的数据重置为${plate===SAMPLE_PLATE?'初始数据':'空档案'}？云端数据也会被同步覆盖。`))return;
     S=(plate===SAMPLE_PLATE)?buildSeed():emptyData(); P().data=S; fixIds();
     save(); initYears(); refresh(); show('已重置');
   };
-  // ── GitHub 云端同步（按车辆） ──
-  document.getElementById('btnGhConnect').onclick=async()=>{
-    if(!requireUnlock())return;
-    const token=document.getElementById('ghToken').value.trim();
-    const gistId=document.getElementById('ghGistId').value.trim();
-    const prof=P(); const tk=token||ghToken();
-    if(!tk){show('请先创建并粘贴 GitHub 令牌');return;}
-    if(token) ghSaveToken(token);
-    const btn=document.getElementById('btnGhConnect');
-    btn.disabled=true; btn.textContent='连接中…';
-    const oldGist=prof.gistId; prof.gistId=gistId||prof.gistId||''; saveDB();
-    if(prof.gistId){
-      lastEtag='';
-      const r=await gistPull();
-      btn.disabled=false; btn.textContent='连接云端';
-      if(r==='auth'){alert('令牌无效或缺少 gist 权限');prof.gistId=oldGist;saveDB();return;}
-      if(r==='notfound'){alert('云端数据 ID 不存在');prof.gistId=oldGist;saveDB();return;}
-      if(r===false){alert('无法连接 GitHub，请检查网络');prof.gistId=oldGist;saveDB();return;}
-      location.reload();
-    }else{
-      if(!confirm(`将为 ${plate} 在你的 GitHub 账号下新建一个私密 Gist，并把当前数据上传为云端数据，继续？`)){
-        btn.disabled=false; btn.textContent='连接云端'; return;
-      }
-      const ok=await gistCreate();
-      btn.disabled=false; btn.textContent='连接云端';
-      if(ok){ show('云端数据已创建'); setTimeout(()=>location.reload(),700); }
-      else alert('创建失败：令牌无效或网络错误');
-    }
-  };
-  document.getElementById('btnGhDisconnect').onclick=()=>{
-    if(!confirm('断开本车的云端同步？云端数据仍保留在你的 GitHub 中，仅本设备不再同步。'))return;
-    P().gistId=''; saveDB(); renderGhPanel(); setSync('local'); show('已断开');
-  };
-  document.getElementById('btnGhShare').onclick=()=>{
-    const prof=P();
-    if(location.origin&&location.origin!=='null'){
-      const url=location.origin+location.pathname+'?gist='+prof.gistId+'&plate='+encodeURIComponent(plate);
-      if(navigator.clipboard&&navigator.clipboard.writeText){
-        navigator.clipboard.writeText(url).then(()=>show('接入链接已复制')).catch(()=>prompt('请复制以下链接：',url));
-      }else prompt('请复制以下链接：',url);
-    }else{
-      prompt('本地文件模式无法生成链接。请在其他设备打开本页面后，输入云端数据 ID：',prof.gistId);
-    }
-  };
-  // 多设备同步：每 10 秒检查云端是否有更新的版本
+  // ── 云端实时同步：每 10 秒检查云端是否有更新版本（适用于所有档案，无需任何配置） ──
   setInterval(async()=>{
-    if(!S||backend()!=='github') return;
-    const d=await gistPull();
-    const localTs=(S.meta&&S.meta.savedAt)||0;
-    if(d && d!=='empty' && d.meta && d.meta.savedAt>localTs && d.meta.savedAt>lastSavedAt){
-      S=d; P().data=S; fixIds(); saveDB();
+    if(!S||!plate||plate===DEMO_PLATE) return;
+    const prof=DB.profiles[plate]; if(!prof) return;
+    const bk=await cloudLookup(plate);
+    if(bk && (bk.backupAt||0)>(prof.bkAt||0)){
+      applyBk(plate,bk);
+      S=P().data; fixIds();
       if(!years().includes(curYear)) curYear=years()[years().length-1];
       initYears(); refresh(); setSync('synced');
     }
   },10000);
-  // 默认停在主页面（搜索进入/示例档案）；若带分享链接则直接进入对应档案
-  if(shareTarget&&DB.profiles[shareTarget]) await openProfile(shareTarget); else showGarage();
+  // 默认停在主页面（搜索进入/示例档案）
+  showGarage();
 }
 init();
 </script>
