@@ -259,7 +259,7 @@
         <div class="fld"><label>日期</label><input type="date" id="fDate"></div>
         <div class="fld"><label>消费金额（元）</label><input type="number" id="fAmount" step="0.01" min="0"></div>
         <div class="fld" id="fldCap"><label id="capLabel">充电量（kWh）</label><input type="number" id="fCap" step="0.01" min="0"></div>
-        <div class="fld" id="fldPurpose" style="display:none"><label>用途（如：停车费、出机场、杭州到庆元高速）</label><input type="text" id="fPurpose" style="width:260px"></div>
+        <div class="fld" id="fldPurpose"><label id="purposeLabel">备注（可选，如：快充站、家充）</label><input type="text" id="fPurpose" style="width:260px"></div>
         <button class="btn" id="btnSave">保存</button>
         <button class="btn gray" id="btnCancel" style="display:none">取消编辑</button>
       </div>
@@ -472,7 +472,7 @@
       </ul>
       <h4>四、如何记账</h4>
       <ul>
-        <li>在「记录明细」选择类型（充电/加油/用车费用）、日期与金额后保存；充电和加油请同时填写容量（升/度）以计算单价。</li>
+        <li>在「记录明细」选择类型（充电/加油/用车费用）、日期与金额后保存；充电和加油请同时填写容量（升/度）以计算单价，可填写备注（如充电站、油品），用车费用须填写用途。</li>
         <li>也可使用「智能识别」：直接输入一句话（如「昨天快充45.6度花了38元」），自动识别类型、日期、金额与容量并填入表单，核对后保存即可。</li>
         <li>在「里程与费用」按月填写行驶里程、按年填写固定费用（保险为固定项，其余项目可自由增删与修改），才能得到每公里成本。</li>
       </ul>
@@ -996,8 +996,9 @@ function cancelEdit(){ editingId=null; document.getElementById('formTitle').text
 function syncFormFields(){
   const t=document.getElementById('fType').value;
   document.getElementById('fldCap').style.display=t==='expense'?'none':'';
-  document.getElementById('fldPurpose').style.display=t==='expense'?'':'none';
+  document.getElementById('fldPurpose').style.display='';   // 三种类型均显示：费用为必填用途，充电/加油为可选备注
   document.getElementById('capLabel').textContent=t==='fuel'?'加油量（L）':'充电量（kWh）';
+  document.getElementById('purposeLabel').textContent=t==='expense'?'用途（如：停车费、出机场、杭州到庆元高速）':(t==='fuel'?'备注（可选，如：92号、中石化）':'备注（可选，如：快充站、家充）');
 }
 /* 智能识别：从一句话中解析 类型/日期/金额/容量/用途，自动填入表单 */
 function smartParse(raw){
@@ -1843,8 +1844,9 @@ async function init(){
     if(!dv||isNaN(amount)||amount<0){show('请填写完整的日期和金额');return;}
     const [y,m,d]=dv.split('-').map(Number);
     const cap=type==='expense'?0:(parseFloat(document.getElementById('fCap').value)||0);
-    const purpose=type==='expense'?(document.getElementById('fPurpose').value.trim()||'其他'):(d===0?'家充桩':'');
-    if(type==='expense'&&!document.getElementById('fPurpose').value.trim()){show('请填写用途');return;}
+    const note=document.getElementById('fPurpose').value.trim();
+    const purpose=type==='expense'?(note||'其他'):(note||(d===0?'家充桩':''));   // 充电/加油的备注可选，按月家充记录默认「家充桩」
+    if(type==='expense'&&!note){show('请填写用途');return;}
     const isEdit=!!editingId; const tname={charge:'充电',fuel:'加油',expense:'用车费用'}[type];
     if(editingId){ const r=S.records.find(x=>x.id===editingId); Object.assign(r,{type,y,m,d,amount,cap,purpose}); logOp(`修改记录 #${editingId}：${dv} ${tname} ${amount} 元`); cancelEdit(); }
     else { S.records.push({id:S.nextId++,type,y,m,d,amount,cap,purpose}); logOp(`添加记录：${dv} ${tname} ${amount} 元`); }
